@@ -1,9 +1,5 @@
 I do not wish to maintain this for regular stock elks if one of the elks maintainers could fork this that be really fantastic
 
-# ssh-daemon-project
-
-`ssh-daemon-project` is the standalone Dropbear source tree adapted for ELKS on
-16-bit IA16 systems.
 
 ## Platform
 
