@@ -19,9 +19,3 @@
 The main ELKS deliverable from this repository is `dbclient`.
 The full source tree is kept because the QEMU test harness also builds a host
 Dropbear server fixture from the same source base.
-
-## Relationship To ELKS Enhanced
-
-This repository is separate from `elks-enhanced`.
-The main ELKS tree keeps the menuconfig and install hooks for the Dropbear
-extapp, but the source is fetched into `extapps%
