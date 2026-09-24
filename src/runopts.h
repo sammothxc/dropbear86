@@ -38,7 +38,7 @@ typedef struct runopts {
     || DROPBEAR_CLI_REMOTETCPFWD
 	int listen_fwd_all;
 #endif
-	unsigned int recv_window;
+	uint32_t recv_window;
 	long keepalive_secs; /* Time between sending keepalives. 0 is off */
 	long idle_timeout_secs; /* Exit if no traffic is sent/received in this time */
 	long max_duration_secs; /* Exit after this time */

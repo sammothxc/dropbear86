@@ -57,7 +57,7 @@ void recv_msg_userauth_pk_ok() {
 	m_list_elem *iter;
 	buffer* keybuf = NULL;
 	char* algotype = NULL;
-	unsigned int algolen;
+	uint32_t algolen;
 	enum signkey_type keytype;
 	enum signature_type sigtype;
 	unsigned int remotelen;
@@ -147,7 +147,7 @@ static void cli_buf_put_sign(buffer* buf, sign_key *key, enum signature_type sig
 static void send_msg_userauth_pubkey(sign_key *key, enum signature_type sigtype, int realsign) {
 
 	const char *algoname = NULL;
-	unsigned int algolen;
+	uint32_t algolen;
 	buffer* sigbuf = NULL;
 	enum signkey_type keytype = signkey_type_from_signature(sigtype);
 

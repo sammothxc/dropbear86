@@ -117,10 +117,9 @@ static int dropbear_chachapoly_crypt(unsigned int seq,
 }
 
 static int dropbear_chachapoly_getlength(unsigned int seq,
-			const unsigned char *in, unsigned int *outlen,
+			const unsigned char *in, uint32_t *outlen,
 			unsigned long len, dropbear_chachapoly_state *state) {
 	unsigned char seqbuf[8], buf[4];
-	ulong32 plen32;
 	int err;
 
 	TRACE2(("enter dropbear_chachapoly_getlength"))
@@ -135,11 +134,7 @@ static int dropbear_chachapoly_getlength(unsigned int seq,
 		return err;
 	}
 
-	LOAD32H(plen32, buf);
-	if (plen32 > UINT_MAX) {
-		return CRYPT_ERROR;
-	}
-	*outlen = (unsigned int)plen32;
+	LOAD32H(*outlen, buf);
 
 	TRACE2(("leave dropbear_chachapoly_getlength"))
 	return CRYPT_OK;
@@ -157,7 +152,7 @@ static int dropbear_chachapoly_mode_crypt(unsigned int seq,
 }
 
 static int dropbear_chachapoly_mode_getlength(unsigned int seq,
-		const unsigned char *in, unsigned int *outlen, unsigned long len,
+		const unsigned char *in, uint32_t *outlen, unsigned long len,
 		void *cipher_state) {
 	return dropbear_chachapoly_getlength(seq, in, outlen, len, cipher_state);
 }

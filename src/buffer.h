@@ -57,19 +57,19 @@ unsigned char buf_getbool(buffer* buf);
 void buf_putbyte(buffer* buf, unsigned char val);
 unsigned char* buf_getptr(const buffer* buf, unsigned int len);
 unsigned char* buf_getwriteptr(const buffer* buf, unsigned int len);
-char* buf_getstring(buffer* buf, unsigned int *retlen);
+char* buf_getstring(buffer* buf, uint32_t *retlen);
 buffer * buf_getstringbuf(buffer *buf);
 buffer * buf_getbuf(buffer *buf);
 buffer * buf_getptrcopy(const buffer* buf, unsigned int len);
 void buf_eatstring(buffer *buf);
-void buf_putint(buffer* buf, unsigned int val);
-void buf_putstring(buffer* buf, const char* str, unsigned int len);
+void buf_putint(buffer* buf, uint32_t val);
+void buf_putstring(buffer* buf, const char* str, uint32_t len);
 void buf_putbufstring(buffer *buf, const buffer* buf_str);
 void buf_putbytes(buffer *buf, const unsigned char *bytes, unsigned int len);
 #if DROPBEAR_NORMAL_DH || DROPBEAR_ECDH || DROPBEAR_RSA || DROPBEAR_DSS || DROPBEAR_ECDSA
 void buf_putmpint(buffer* buf, const mp_int * mp);
 int buf_getmpint(buffer* buf, mp_int* mp);
 #endif
-unsigned int buf_getint(buffer* buf);
+uint32_t buf_getint(buffer* buf);
 
 #endif /* DROPBEAR_BUFFER_H_ */

@@ -36,15 +36,15 @@
 #include "runopts.h"
 #include "netio.h"
 
-static void send_msg_channel_open_failure(unsigned int remotechan, int reason,
+static void send_msg_channel_open_failure(uint32_t remotechan, int reason,
 		const char *text, const char *lang);
 static void send_msg_channel_open_confirmation(const struct Channel* channel,
-		unsigned int recvwindow, 
-		unsigned int recvmaxpacket);
+		uint32_t recvwindow,
+		uint32_t recvmaxpacket);
 static int writechannel(struct Channel* channel, int fd, circbuffer *cbuf,
 	const unsigned char *moredata, unsigned int *morelen);
 static void send_msg_channel_window_adjust(const struct Channel *channel,
-		unsigned int incr);
+		uint32_t incr);
 static void send_msg_channel_data(struct Channel *channel, int isextended);
 static void send_msg_channel_eof(struct Channel *channel);
 static void send_msg_channel_close(struct Channel *channel);
@@ -103,9 +103,9 @@ void chancleanup() {
 /* If remotechan, transwindow and transmaxpacket are not know (for a new
  * outgoing connection, with them to be filled on confirmation), they should
  * all be set to 0 */
-static struct Channel* newchannel(unsigned int remotechan, 
-		const struct ChanType *type, 
-		unsigned int transwindow, unsigned int transmaxpacket) {
+static struct Channel* newchannel(uint32_t remotechan,
+		const struct ChanType *type,
+		uint32_t transwindow, uint32_t transmaxpacket) {
 
 	struct Channel * newchan;
 	unsigned int i, j;
@@ -858,7 +858,7 @@ void common_recv_msg_channel_data(struct Channel *channel, int fd,
 void recv_msg_channel_window_adjust() {
 
 	struct Channel * channel;
-	unsigned int incr, newwin;
+	uint32_t incr, newwin;
 	
 	channel = getchannel();
 	
@@ -878,7 +878,7 @@ void recv_msg_channel_window_adjust() {
 /* Increment the incoming data window for a channel, and let the remote
  * end know */
 static void send_msg_channel_window_adjust(const struct Channel* channel,
-		unsigned int incr) {
+		uint32_t incr) {
 
 	TRACE(("sending window adjust %d", incr))
 	CHECKCLEARTOWRITE();
@@ -894,8 +894,8 @@ static void send_msg_channel_window_adjust(const struct Channel* channel,
 void recv_msg_channel_open() {
 
 	char *type;
-	unsigned int typelen;
-	unsigned int remotechan, transwindow, transmaxpacket;
+	uint32_t typelen;
+	uint32_t remotechan, transwindow, transmaxpacket;
 	struct Channel *channel;
 	const struct ChanType **cp;
 	const struct ChanType *chantype;
@@ -1013,7 +1013,7 @@ void send_msg_channel_success(const struct Channel *channel) {
 
 /* Send a channel open failure message, with a corresponding reason
  * code (usually resource shortage or unknown chan type) */
-static void send_msg_channel_open_failure(unsigned int remotechan, 
+static void send_msg_channel_open_failure(uint32_t remotechan,
 		int reason, const char *text, const char *lang) {
 
 	TRACE(("enter send_msg_channel_open_failure"))
@@ -1032,8 +1032,8 @@ static void send_msg_channel_open_failure(unsigned int remotechan,
 /* Confirm a channel open, and let the remote end know what number we've
  * allocated and the receive parameters */
 static void send_msg_channel_open_confirmation(const struct Channel* channel,
-		unsigned int recvwindow, 
-		unsigned int recvmaxpacket) {
+		uint32_t recvwindow,
+		uint32_t recvmaxpacket) {
 
 	TRACE(("enter send_msg_channel_open_confirmation"))
 	CHECKCLEARTOWRITE();

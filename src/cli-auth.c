@@ -72,7 +72,7 @@ void cli_auth_getmethods() {
 void recv_msg_userauth_banner() {
 
 	char* banner = NULL;
-	unsigned int bannerlen;
+	uint32_t bannerlen;
 	unsigned int i, linecount;
 	int truncated = 0;
 
@@ -158,7 +158,7 @@ void recv_msg_userauth_failure() {
 
 	char * methods = NULL;
 	char * tok = NULL;
-	unsigned int methlen = 0;
+	uint32_t methlen = 0;
 	unsigned int partial = 0;
 	unsigned int i = 0;
 	int allow_pw_auth = 1;

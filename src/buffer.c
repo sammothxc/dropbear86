@@ -198,18 +198,20 @@ unsigned char* buf_getwriteptr(const buffer* buf, unsigned int len) {
 /* Return a null-terminated string, it is malloced, so must be free()ed
  * Note that the string isn't checked for null bytes, hence the retlen
  * may be longer than what is returned by strlen */
-char* buf_getstring(buffer* buf, unsigned int *retlen) {
+char* buf_getstring(buffer* buf, uint32_t *retlen) {
 
+	uint32_t wire_len;
 	unsigned int len;
 	char* ret;
 	void* src = NULL;
-	len = buf_getint(buf);
-	if (len > MAX_STRING_LEN) {
+	wire_len = buf_getint(buf);
+	if (wire_len > MAX_STRING_LEN) {
 		dropbear_exit("String too long");
 	}
+	len = (unsigned int)wire_len;
 
 	if (retlen != NULL) {
-		*retlen = len;
+		*retlen = wire_len;
 	}
 	src = buf_getptr(buf, len);
 	ret = m_malloc(len+1);
@@ -223,17 +225,19 @@ char* buf_getstring(buffer* buf, unsigned int *retlen) {
 /* Return a string as a newly allocated buffer */
 static buffer * buf_getstringbuf_int(buffer *buf, int incllen) {
 	buffer *ret = NULL;
-	unsigned int len = buf_getint(buf);
+	uint32_t wire_len = buf_getint(buf);
+	unsigned int len;
 	int extra = 0;
-	if (len > MAX_STRING_LEN) {
+	if (wire_len > MAX_STRING_LEN) {
 		dropbear_exit("String too long");
 	}
+	len = (unsigned int)wire_len;
 	if (incllen) {
 		extra = 4;
 	}
 	ret = buf_new(len+extra);
 	if (incllen) {
-		buf_putint(ret, len);
+		buf_putint(ret, wire_len);
 	}
 	memcpy(buf_getwriteptr(ret, len), buf_getptr(buf, len), len);
 	buf_incrpos(buf, len);
@@ -264,26 +268,24 @@ buffer * buf_getptrcopy(const buffer* buf, unsigned int len) {
 /* Just increment the buffer position the same as if we'd used buf_getstring,
  * but don't bother copying/malloc()ing for it */
 void buf_eatstring(buffer *buf) {
-
-	buf_incrpos( buf, buf_getint(buf) );
+	uint32_t wire_len = buf_getint(buf);
+	if (wire_len > MAX_STRING_LEN) {
+		dropbear_exit("String too long");
+	}
+	buf_incrpos(buf, (unsigned int)wire_len);
 }
 
 /* Get an uint32 from the buffer and increment the pos */
-unsigned int buf_getint(buffer* buf) {
-	ulong32 val32;
-	unsigned int ret;
+uint32_t buf_getint(buffer* buf) {
+	uint32_t val32;
 
 	LOAD32H(val32, buf_getptr(buf, 4));
-	if (val32 > UINT_MAX) {
-		dropbear_exit("Integer too large");
-	}
 	buf_incrpos(buf, 4);
-	ret = (unsigned int)val32;
-	return ret;
+	return val32;
 }
 
 /* put a 32bit uint into the buffer, incr bufferlen & pos if required */
-void buf_putint(buffer* buf, int unsigned val) {
+void buf_putint(buffer* buf, uint32_t val) {
 
 	STORE32H(val, buf_getwriteptr(buf, 4));
 	buf_incrwritepos(buf, 4);
@@ -291,10 +293,10 @@ void buf_putint(buffer* buf, int unsigned val) {
 }
 
 /* put a SSH style string into the buffer, increasing buffer len if required */
-void buf_putstring(buffer* buf, const char* str, unsigned int len) {
-	
+void buf_putstring(buffer* buf, const char* str, uint32_t len) {
+
 	buf_putint(buf, len);
-	buf_putbytes(buf, (const unsigned char*)str, len);
+	buf_putbytes(buf, (const unsigned char*)str, (unsigned int)len);
 
 }
 

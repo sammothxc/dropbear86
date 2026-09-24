@@ -215,7 +215,7 @@ static int read_packet_init() {
 
 	unsigned int maxlen;
 	int slen;
-	unsigned int len, plen;
+	uint32_t len, plen;
 	unsigned int blocksize;
 	unsigned int macsize;
 
@@ -283,13 +283,13 @@ static int read_packet_init() {
 	if ((len > RECV_MAX_PACKET_LEN) ||
 		(plen < blocksize) ||
 		(plen % blocksize != 0)) {
-		dropbear_exit("Integrity error (bad packet size %u)", len);
+		dropbear_exit("Integrity error (bad packet size %lu)", (unsigned long)len);
 	}
 
 	if (len > ses.readbuf->size) {
-		ses.readbuf = buf_resize(ses.readbuf, len);		
+		ses.readbuf = buf_resize(ses.readbuf, (unsigned int)len);
 	}
-	buf_setlen(ses.readbuf, len);
+	buf_setlen(ses.readbuf, (unsigned int)len);
 	buf_setpos(ses.readbuf, blocksize);
 	return DROPBEAR_SUCCESS;
 }

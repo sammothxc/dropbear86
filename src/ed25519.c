@@ -42,7 +42,8 @@ int buf_get_ed25519_pub_key(buffer *buf, dropbear_ed25519_key *key,
 	enum signkey_type expect_keytype) {
 
 
-	unsigned int len, typelen;
+	unsigned int len;
+	uint32_t typelen;
 	char *keytype = NULL;
 	enum signkey_type buf_keytype;
 

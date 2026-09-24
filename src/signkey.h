@@ -128,7 +128,7 @@ struct SIGN_key {
 #if DROPBEAR_SK_ECDSA || DROPBEAR_SK_ED25519
 	/* application ID for U2F/FIDO key types, a malloced string */
 	char * sk_app;
-	unsigned int sk_applen;
+	uint32_t sk_applen;
 	unsigned char sk_flags_mask;
 #endif
 };
@@ -136,9 +136,9 @@ struct SIGN_key {
 typedef struct SIGN_key sign_key;
 
 sign_key * new_sign_key(void);
-const char* signkey_name_from_type(enum signkey_type type, unsigned int *namelen);
+const char* signkey_name_from_type(enum signkey_type type, uint32_t *namelen);
 enum signkey_type signkey_type_from_name(const char* name, unsigned int namelen);
-const char* signature_name_from_type(enum signature_type type, unsigned int *namelen);
+const char* signature_name_from_type(enum signature_type type, uint32_t *namelen);
 enum signature_type signature_type_from_name(const char* name, unsigned int namelen);
 enum signkey_type signkey_type_from_signature(enum signature_type sigtype);
 enum signature_type signature_type_from_signkey(enum signkey_type keytype);

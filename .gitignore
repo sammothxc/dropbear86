@@ -1,0 +1,29 @@
+# autoconf output
+config.log
+config.status
+autom4te.cache/
+
+# generated during ELKS build
+default_options_guard.h
+obj-elks/
+
+# host build outputs
+obj/
+dbclient
+dropbear
+dropbearkey
+dropbearconvert
+dropbearmulti
+scp
+
+# libtom bundled builds
+libtomcrypt/libtomcrypt.a
+libtommath/libtommath.a
+
+# common editor / OS noise
+*.o
+*.a
+*~
+.*.swp
+.DS_Store
+CLAUDE.md

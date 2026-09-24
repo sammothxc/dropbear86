@@ -77,7 +77,7 @@ struct dropbear_cipher_mode {
 			unsigned long len, unsigned long taglen,
 			void *cipher_state, int direction);
 	int (*aead_getlength)(unsigned int seq,
-			const unsigned char *in, unsigned int *outlen,
+			const unsigned char *in, uint32_t *outlen,
 			unsigned long len, void *cipher_state);
 	const struct dropbear_hash *aead_mac;
 };

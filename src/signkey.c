@@ -71,7 +71,7 @@ sign_key * new_sign_key() {
 
 /* Returns key name corresponding to the type. Exits fatally
  * if the type is invalid */
-const char* signkey_name_from_type(enum signkey_type type, unsigned int *namelen) {
+const char* signkey_name_from_type(enum signkey_type type, uint32_t *namelen) {
 	if (type >= DROPBEAR_SIGNKEY_NUM_NAMED) {
 		dropbear_exit("Bad key type %d", type);
 	}
@@ -119,7 +119,7 @@ enum signkey_type signkey_type_from_name(const char* name, unsigned int namelen)
 
 /* Special case for rsa-sha2-256. This could be generalised if more 
    signature names are added that aren't 1-1 with public key names */
-const char* signature_name_from_type(enum signature_type type, unsigned int *namelen) {
+const char* signature_name_from_type(enum signature_type type, uint32_t *namelen) {
 #if DROPBEAR_RSA
 #if DROPBEAR_RSA_SHA256
 	if (type == DROPBEAR_SIGNATURE_RSA_SHA256) {
@@ -235,7 +235,7 @@ signkey_key_ptr(sign_key *key, enum signkey_type type) {
 int buf_get_pub_key(buffer *buf, sign_key *key, enum signkey_type *type) {
 
 	char *ident;
-	unsigned int len;
+	uint32_t len;
 	enum signkey_type keytype;
 	int ret = DROPBEAR_FAILURE;
 
@@ -339,7 +339,7 @@ int buf_get_pub_key(buffer *buf, sign_key *key, enum signkey_type *type) {
 int buf_get_priv_key(buffer *buf, sign_key *key, enum signkey_type *type) {
 
 	char *ident;
-	unsigned int len;
+	uint32_t len;
 	enum signkey_type keytype;
 	int ret = DROPBEAR_FAILURE;
 
@@ -645,7 +645,7 @@ void buf_put_sign(buffer* buf, sign_key *key, enum signature_type sigtype,
 int buf_verify(buffer * buf, sign_key *key, enum signature_type expect_sigtype, const buffer *data_buf) {
 	
 	char *type_name = NULL;
-	unsigned int type_name_len = 0;
+	uint32_t type_name_len = 0;
 	enum signature_type sigtype;
 	enum signkey_type keytype;
 

@@ -117,7 +117,8 @@ void send_msg_kexdh_init() {
 void recv_msg_kexdh_reply() {
 
 	sign_key *hostkey = NULL;
-	unsigned int keytype, keybloblen;
+	enum signkey_type keytype;
+	uint32_t keybloblen;
 	unsigned char* keyblob = NULL;
 
 	TRACE(("enter recv_msg_kexdh_reply"))
@@ -327,7 +328,8 @@ static void checkhostkey(const unsigned char* keyblob, unsigned int keybloblen) 
 
 	FILE *hostsfile = NULL;
 	int readonly = 0;
-	unsigned int hostlen, algolen;
+	unsigned int hostlen;
+	uint32_t algolen;
 	unsigned long len;
 	const char *algoname = NULL;
 	char * fingerprint = NULL;
@@ -471,7 +473,7 @@ void recv_msg_ext_info(void) {
 	TRACE(("received SSH_MSG_EXT_INFO with %d items", num_ext))
 
 	for (i = 0; i < num_ext; i++) {
-		unsigned int name_len;
+		uint32_t name_len;
 		char *ext_name = buf_getstring(ses.payload, &name_len);
 		TRACE(("extension %d name '%s'", i, ext_name))
 		if (cli_ses.server_sig_algs == NULL

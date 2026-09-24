@@ -46,9 +46,9 @@ struct Channel {
 
 	unsigned int index; /* the local channel index */
 	unsigned int remotechan;
-	unsigned int recvwindow, transwindow;
+	uint32_t recvwindow, transwindow;
 	unsigned int recvdonelen;
-	unsigned int recvmaxpacket, transmaxpacket;
+	uint32_t recvmaxpacket, transmaxpacket;
 	void* typedata; /* a pointer to type specific data */
 	int writefd; /* read from wire, written to insecure side */
 	int readfd; /* read from insecure side, written to wire */

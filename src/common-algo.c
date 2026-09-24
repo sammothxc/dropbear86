@@ -464,7 +464,8 @@ DROPBEAR_FAILURE otherwise. buf position is not incremented. */
 int buf_has_algo(buffer *buf, const char *algo) {
 	unsigned char* algolist = NULL;
 	unsigned int orig_pos = buf->pos;
-	unsigned int len, remotecount, i;
+	uint32_t len;
+	unsigned int remotecount, i;
 	const char *remotenames[MAX_PROPOSED_ALGO];
 	int ret = DROPBEAR_FAILURE;
 
@@ -504,7 +505,7 @@ algo_type * buf_match_algo(buffer* buf, algo_type localalgos[],
 		int kexguess2, int *goodguess) {
 	char * algolist = NULL;
 	const char *remotenames[MAX_PROPOSED_ALGO], *localnames[MAX_PROPOSED_ALGO];
-	unsigned int len;
+	uint32_t len;
 	unsigned int remotecount, localcount, clicount, servcount, i, j;
 	algo_type * ret = NULL;
 	const char **clinames, **servnames;

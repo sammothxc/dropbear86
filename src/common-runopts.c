@@ -108,8 +108,8 @@ void parse_recv_window(const char* recv_window_arg) {
 		if (rw > MAX_RECV_WINDOW) {
 			opts.recv_window = MAX_RECV_WINDOW;
 		}
-		dropbear_log(LOG_WARNING, "Bad recv window '%s', using %d",
-			recv_window_arg, opts.recv_window);
+		dropbear_log(LOG_WARNING, "Bad recv window '%s', using %lu",
+			recv_window_arg, (unsigned long)opts.recv_window);
 	} else {
 		opts.recv_window = rw;
 	}
