@@ -1,6 +1,3 @@
-I do not wish to maintain this for regular stock elks if one of the elks maintainers could fork this that be really fantastic
-
-
 ## Platform
 
 - ELKS on 8086, 8088, 80186, 80188, 80286 and compatible CPUs
