@@ -2,7 +2,7 @@ TOPDIR ?= ../..
 
 CC = ia16-elf-gcc
 OBJDIR = obj-elks
-DBCLIENT = dbclient
+DBCLIENT = ssh
 
 CPPFLAGS = -I. -I src -I libtomcrypt/src/headers -DLOCALOPTIONS_H_EXISTS -DDROPBEAR_CLIENT -DDROPBEAR_ELKS_WEAK_RANDOM=1
 CFLAGS = -mcmodel=medium -melks-libc -mtune=i8086 -Wall -O2 \

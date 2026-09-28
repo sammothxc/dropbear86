@@ -16,6 +16,9 @@ dropbearconvert
 dropbearmulti
 scp
 
+# ELKS build output
+ssh
+
 # libtom bundled builds
 libtomcrypt/libtomcrypt.a
 libtommath/libtommath.a
