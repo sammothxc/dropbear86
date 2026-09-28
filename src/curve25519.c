@@ -40,6 +40,11 @@ typedef unsigned long long u64;
 typedef long long i64;
 typedef i64 gf[16];
 
+/* Portable 32x32 -> 64 signed widening multiply.  See implementation
+ * below M() for rationale; forward-declared here so car25519() and the
+ * mod-2^255-19 reduction inside M() can call it. */
+static i64 mul_widen(long a, long b);
+
 #if DROPBEAR_CURVE25519_DEP
 static const gf
   _121665 = {0xDB41,1};
@@ -86,12 +91,22 @@ sv car25519(gf o)
 {
   int i;
   i64 c;
-  FOR(i,16) {
-    o[i]+=(1LL<<16);
-    c=o[i]>>16;
-    o[(i+1)*(i<15)]+=c-1+37*(c-1)*(i==15);
-    o[i]-=((u64)c)<<16;
+  /* Iterations 0..14: propagate carry to the next limb. */
+  for (i = 0; i < 15; i++) {
+    o[i] += (1LL << 16);
+    c = o[i] >> 16;
+    o[i+1] += c - 1;
+    o[i] -= ((u64)c) << 16;
   }
+  /* Iteration 15: fold overflow of the top limb back into o[0] with
+   * factor 38 (since 2^256 ≡ 38 mod 2^255-19).  The TweetNaCl idiom
+   * combines this with the general step as `c-1 + 37*(c-1)`; splitting
+   * it out gets us a `38 * (c-1)` where the multiplier is small enough
+   * to route through mul_widen instead of __muldi3. */
+  o[15] += (1LL << 16);
+  c = o[15] >> 16;
+  o[0] += mul_widen(38, (long)(c - 1));
+  o[15] -= ((u64)c) << 16;
 }
 
 sv sel25519(gf p,gf q,int b)
@@ -214,7 +229,15 @@ sv M(gf o,const gf a,const gf b)
       t[i+j] += mul_widen(ai, (long)b[j]);
     }
   }
-  FOR(i,15) t[i]+=38*t[i+16];
+  /* Reduce t[16..30] into t[0..14] by folding with factor 38 (since
+   * 2^256 ≡ 38 mod 2^255-19). The original `38 * t[i+16]` compiles to
+   * __muldi3 on ia16 (int × i64). 38 = 32 + 4 + 2, so we can express it
+   * as shifts, which gcc-ia16 inlines rather than calling a library
+   * routine. */
+  for (i = 0; i < 15; i++) {
+    i64 v = t[i+16];
+    t[i] += (v << 5) + (v << 2) + (v << 1);
+  }
   FOR(i,16) o[i]=t[i];
   car25519(o);
   car25519(o);
