@@ -167,11 +167,53 @@ sv Z(gf o,const gf a,const gf b)
   FOR(i,16) o[i]=a[i]-b[i];
 }
 
+/* Portable 32x32 -> 64 signed widening multiply.
+ *
+ * On ia16, the compiler emits __muldi3 (~200-cycle software 64x64 multiply)
+ * for `long long * long long`, and libgcc-ia16 doesn't ship a __mulsidi3
+ * we could call directly. So we roll our own widening multiply out of four
+ * `unsigned int * unsigned int` products — which on ia16 each compile to a
+ * single hardware MUL instruction (16x16 -> 32). Net: ~5-10x cheaper than
+ * one __muldi3 call.
+ *
+ * On hosts where `long` is already 64-bit (x86-64), this compiles to
+ * essentially a single native mul — no regression. */
+static i64 mul_widen(long a, long b)
+{
+    int neg = (a < 0) ^ (b < 0);
+    unsigned long ua = (unsigned long)(a < 0 ? -a : a);
+    unsigned long ub = (unsigned long)(b < 0 ? -b : b);
+    uint16_t alo = (uint16_t)ua;
+    uint16_t ahi = (uint16_t)(ua >> 16);
+    uint16_t blo = (uint16_t)ub;
+    uint16_t bhi = (uint16_t)(ub >> 16);
+    /* Each of these is a 16x16 -> 32 product — a single hardware MUL on ia16. */
+    uint32_t ll = (uint32_t)alo * blo;
+    uint32_t lh = (uint32_t)alo * bhi;
+    uint32_t hl = (uint32_t)ahi * blo;
+    uint32_t hh = (uint32_t)ahi * bhi;
+    /* Assemble unsigned 64-bit result:  (hh << 32) + ((lh + hl) << 16) + ll.
+     * lh + hl may overflow uint32; track that carry. */
+    uint32_t mid = lh + hl;
+    uint32_t mid_carry = (mid < lh) ? 1u : 0u;
+    uint32_t lo32 = ll + (mid << 16);
+    uint32_t lo_carry = (lo32 < ll) ? 1u : 0u;
+    uint32_t hi32 = hh + (mid >> 16) + (mid_carry << 16) + lo_carry;
+    uint64_t r = ((uint64_t)hi32 << 32) | lo32;
+    return neg ? -(i64)r : (i64)r;
+}
+
 sv M(gf o,const gf a,const gf b)
 {
-  i64 i,j,t[31];
+  i64 t[31];
+  unsigned int i, j;
   FOR(i,31) t[i]=0;
-  FOR(i,16) FOR(j,16) t[i+j]+=a[i]*b[j];
+  for (i = 0; i < 16; i++) {
+    long ai = (long)a[i];   /* limb fits in i32 by algorithm invariant */
+    for (j = 0; j < 16; j++) {
+      t[i+j] += mul_widen(ai, (long)b[j]);
+    }
+  }
   FOR(i,15) t[i]+=38*t[i+16];
   FOR(i,16) o[i]=t[i];
   car25519(o);
