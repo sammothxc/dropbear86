@@ -5,7 +5,12 @@ OBJDIR = obj-elks
 DBCLIENT = ssh
 
 CPPFLAGS = -I. -I src -I libtomcrypt/src/headers -DLOCALOPTIONS_H_EXISTS -DDROPBEAR_CLIENT -DDROPBEAR_ELKS_WEAK_RANDOM=1
-CFLAGS = -mcmodel=medium -melks-libc -mtune=i8086 -Wall -O2 \
+# -O2 was attempted for faster Curve25519 arithmetic but ia16-elf-gcc 6.3
+# miscompiles our code path there: the resulting binary hangs before
+# printing anything (verified byte-identical to the desktop build; not a
+# corruption). Stick with -O2 only if you rebuild the compiler from a
+# newer tkchia/build-ia16 first.
+CFLAGS = -mcmodel=medium -melks-libc -mtune=i8086 -Wall -Os \
 	-fomit-frame-pointer -fno-strict-overflow -Wno-pointer-sign
 
 DBCLIENT_SRCS = \
