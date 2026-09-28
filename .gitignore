@@ -18,6 +18,10 @@ scp
 
 # ELKS build output
 ssh
+ssh.o2
+
+# Desktop test harness build output
+test-crypto/test_x25519
 
 # libtom bundled builds
 libtomcrypt/libtomcrypt.a
