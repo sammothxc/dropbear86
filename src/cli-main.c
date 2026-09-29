@@ -54,10 +54,16 @@ int main(int argc, char ** argv) {
 
 	disallow_core();
 
+	/* Parse arguments before running seedrandom() and crypto_init().
+	 * Both are ~10-30 seconds on a 4.77 MHz 8088 and neither is needed
+	 * for arg parsing or usage output — moving them after cli_getopts
+	 * makes `ssh` with no args (or bad args, or -h) print instantly
+	 * instead of after a 40-second stall.  cli_getopts does its own
+	 * validation and calls dropbear_exit for missing hostname etc. */
+	cli_getopts(argc, argv);
+
 	seedrandom();
 	crypto_init();
-
-	cli_getopts(argc, argv);
 
 #ifndef DISABLE_SYSLOG
 	if (opts.usingsyslog) {
