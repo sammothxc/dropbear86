@@ -40,6 +40,58 @@ static int donerandinit = 0;
 #define INIT_SEED_SIZE 32 /* 256 bits */
 #define PROCESS_FILE_BUFSIZE 256
 
+#if DROPBEAR_ELKS_WEAK_RANDOM
+/* Persistent-seed file for weak-random platforms.  Every seedrandom()
+ * call reads this file at startup (mixing it into the pool) and rewrites
+ * it at finish (with fresh output from the pool).  This means the first
+ * boot's entropy is still weak, but every subsequent connection benefits
+ * from all accumulated entropy of every previous run.
+ *
+ * NOT a substitute for a real /dev/urandom — an attacker who can read
+ * this file at any point can predict the next session's keys.  It IS
+ * meaningful defense against passive network attackers, which is what
+ * a hobby 8088 SSH client is realistically up against. */
+#ifndef DROPBEAR_SEED_FILE
+#define DROPBEAR_SEED_FILE "/etc/dropbear.seed"
+#endif
+#define DROPBEAR_SEED_SIZE 32
+
+static void read_seed_file(hash_state *hs) {
+    int fd;
+    unsigned char buf[DROPBEAR_SEED_SIZE];
+    ssize_t n;
+    fd = open(DROPBEAR_SEED_FILE, O_RDONLY);
+    if (fd < 0) {
+        /* First boot — no seed yet.  Not an error. */
+        return;
+    }
+    n = read(fd, buf, sizeof(buf));
+    close(fd);
+    if (n > 0) {
+        sha256_process(hs, buf, (unsigned long)n);
+    }
+    m_burn(buf, sizeof(buf));
+}
+
+static void write_seed_file(void) {
+    int fd;
+    unsigned char buf[DROPBEAR_SEED_SIZE];
+    /* Derive fresh output from the current pool and write it out.
+     * genrandom() mixes counter + pool state so successive calls produce
+     * different bytes even from the same pool. */
+    genrandom(buf, sizeof(buf));
+    fd = open(DROPBEAR_SEED_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd < 0) {
+        /* Not fatal — best-effort persistence. */
+        m_burn(buf, sizeof(buf));
+        return;
+    }
+    (void)write(fd, buf, sizeof(buf));
+    close(fd);
+    m_burn(buf, sizeof(buf));
+}
+#endif /* DROPBEAR_ELKS_WEAK_RANDOM */
+
 /* The basic setup is we read some data from /dev/(u)random or prngd and hash it
  * into hashpool. To read data, we hash together current hashpool contents,
  * and a counter. We feed more data in by hashing the current pool and new
@@ -241,6 +293,12 @@ void seedrandom() {
 	/* existing state */
 	sha256_process(&hs, (void*)hashpool, sizeof(hashpool));
 
+#if DROPBEAR_ELKS_WEAK_RANDOM
+	/* Fold persisted seed from previous run into the pool.  On first
+	 * boot the file won't exist; that's fine — nothing is added. */
+	read_seed_file(&hs);
+#endif
+
 #ifdef HAVE_GETRANDOM
 	if (process_getrandom(&hs) == DROPBEAR_SUCCESS) {
 		urandom_seeded = 1;
@@ -318,6 +376,12 @@ void seedrandom() {
 
 	counter = 0;
 	donerandinit = 1;
+
+#if DROPBEAR_ELKS_WEAK_RANDOM
+	/* Save fresh output for next run.  Done AFTER donerandinit=1 so
+	 * genrandom() inside write_seed_file() doesn't reject the call. */
+	write_seed_file();
+#endif
 
 	/* Feed it all back into /dev/urandom - this might help if Dropbear
 	 * is running from inetd and gets new state each time */
