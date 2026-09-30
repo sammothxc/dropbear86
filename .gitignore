@@ -23,6 +23,10 @@ ssh.o2
 # Desktop test harness build output
 test-crypto/test_x25519
 
+# ELKS mathtest binary
+test-crypto/mathtest
+test-crypto/obj-elks/
+
 # libtom bundled builds
 libtomcrypt/libtomcrypt.a
 libtommath/libtommath.a
