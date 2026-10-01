@@ -96,7 +96,14 @@ parse_ciphers_macs() {
 #endif
 
 void print_version() {
+#ifdef DROPBEAR86_VERSION
+	/* Set by Makefile.elks from `git describe`, so `ssh -V` on the
+	 * target identifies the exact build. */
+	fprintf(stderr, "dropbear86 %s (Dropbear v%s, ELKS 8086)\n",
+		DROPBEAR86_VERSION, DROPBEAR_VERSION);
+#else
 	fprintf(stderr, "Dropbear v%s\n", DROPBEAR_VERSION);
+#endif
 }
 
 void parse_recv_window(const char* recv_window_arg) {
