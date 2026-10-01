@@ -20,11 +20,14 @@ included in the timed elapsed).
 | Date       | Commit    | Iters | Elapsed | Per-op   | Notes                            |
 |------------|-----------|-------|---------|----------|----------------------------------|
 | 2026-09-30 | 3694f3a   | 4     | 4316 s  | 1079 s   | Phase 2 baseline. -O2, mul_widen |
+| 2026-10-01 | 7369018   | 1     | 31 s    | 31 s     | Phase 2: 8086 asm M/S/A/Z, 16-bit limbs (~35x) |
 
-Per-op = ~18 min. Phase 2 asm work will target this number.
+Per-op = ~18 min at the Phase 2 baseline; 31 s after Phase 2.
+`time mathtest` reports ~2x elapsed (1m4s for the 31 s run) because the
+untimed correctness check is a second scalarmult.
 
 ## Roadmap targets (rough)
 
-- Phase 2 (ia16 asm for M/S): 3-5x per-op speedup → target ~3-6 min/scalarmult
+- Phase 2 (ia16 asm for M/S): target was 3-5x; got ~35x (1079 s → 31 s). Done.
 - Phase 3 (precomputed base tables): halves the first-Curve25519 mult per KEX
 - Phase B (16-bit-limb C rewrite): 2-3x if pursued cleanly, alone or stacked with Phase 2
