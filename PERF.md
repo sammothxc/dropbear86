@@ -34,7 +34,7 @@ Per-stage breakdown printed by `mathtest e` (seconds).
 | Date       | Commit    | Total    | decompress A | SHA-512+modL | h*A + s*B          | pack (inv) | Notes |
 |------------|-----------|----------|--------------|--------------|--------------------|------------|-------|
 | 2026-10-01 | 2fe537b   | 136.28   | 5.26         | 3.65         | 122.11 (61.05+61.06) | 5.25     | Two constant-time ladders |
-| 2026-10-01 | 5c2c457   | —        | —            | —            | 33.27              | —          | Double-scalar sliding window (3.7x on this stage) |
+| 2026-10-01 | 5c2c457   | 47.33*   | 5.28         | 3.65         | 33.27              | 5.13       | Double-scalar sliding window (3.7x on this stage). *Sum of stages; total line not recorded |
 
 ## Roadmap targets (rough)
 
