@@ -27,6 +27,15 @@ Per-op = ~18 min at the Phase 2 baseline; 31 s after Phase 2.
 `time mathtest` reports ~2x elapsed (1m4s for the 31 s run) because the
 untimed correctness check is a second scalarmult.
 
+## mathtest e (Ed25519 verify, RFC 8032 test 1)
+
+Per-stage breakdown printed by `mathtest e` (seconds).
+
+| Date       | Commit    | Total    | decompress A | SHA-512+modL | h*A + s*B          | pack (inv) | Notes |
+|------------|-----------|----------|--------------|--------------|--------------------|------------|-------|
+| 2026-10-01 | 2fe537b   | 136.28   | 5.26         | 3.65         | 122.11 (61.05+61.06) | 5.25     | Two constant-time ladders |
+| 2026-10-01 | 5c2c457   | —        | —            | —            | 33.27              | —          | Double-scalar sliding window (3.7x on this stage) |
+
 ## Roadmap targets (rough)
 
 - Phase 2 (ia16 asm for M/S): target was 3-5x; got ~35x (1079 s → 31 s). Done.
