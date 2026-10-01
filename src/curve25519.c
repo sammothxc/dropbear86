@@ -32,6 +32,15 @@
  * https://tweetnacl.cr.yp.to/ */
 
 #define FOR(i,n) for (i = 0;i < n;++i)
+
+/* test-crypto/mathtest builds with -DCURVE25519_PROFILE and supplies this
+ * to time the stages of Ed25519 verify; it compiles away otherwise. */
+#ifdef CURVE25519_PROFILE
+void curve25519_profile_mark(const char *what);
+#define PROFILE_MARK(what) curve25519_profile_mark(what)
+#else
+#define PROFILE_MARK(what)
+#endif
 #define sv static void
 
 typedef unsigned char u8;
@@ -585,7 +594,9 @@ int dropbear_ed25519_verify(const u8 *m,u32 mlen,const u8 *s,u32 slen,const u8 *
     return -1;
   }
 
+  PROFILE_MARK("verify start");
   if (unpackneg(q,pk)) return -1;
+  PROFILE_MARK("unpackneg (decompress A)");
 
   sha512_init(&hs);
   sha512_process(&hs,s,32);
@@ -594,11 +605,15 @@ int dropbear_ed25519_verify(const u8 *m,u32 mlen,const u8 *s,u32 slen,const u8 *
   sha512_done(&hs,h);
 
   reduce(h);
+  PROFILE_MARK("SHA-512 + reduce mod L");
   scalarmult(p,q,h);
+  PROFILE_MARK("scalarmult h*A");
 
   scalarbase(q,s + 32);
+  PROFILE_MARK("scalarbase s*B");
   add(p,q);
   pack(t,p);
+  PROFILE_MARK("add + pack (inversion)");
 
   if (crypto_verify_32(s, t))
     return -1;

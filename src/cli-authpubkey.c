@@ -178,7 +178,9 @@ static void send_msg_userauth_pubkey(sign_key *key, enum signature_type sigtype,
 		sigbuf = buf_new(4 + ses.session_id->len + ses.writepayload->len);
 		buf_putbufstring(sigbuf, ses.session_id);
 		buf_putbytes(sigbuf, ses.writepayload->data, ses.writepayload->len);
+		phase_mark("pubkey auth: signing start");
 		cli_buf_put_sign(ses.writepayload, key, sigtype, sigbuf);
+		phase_mark("pubkey auth: signing done");
 		buf_free(sigbuf); /* Nothing confidential in the buffer */
 		cli_ses.is_trivial_auth = 0;
 	}

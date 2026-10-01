@@ -61,9 +61,12 @@ int main(int argc, char ** argv) {
 	 * instead of after a 40-second stall.  cli_getopts does its own
 	 * validation and calls dropbear_exit for missing hostname etc. */
 	cli_getopts(argc, argv);
+	phase_mark("args parsed");
 
 	seedrandom();
+	phase_mark("seedrandom done");
 	crypto_init();
+	phase_mark("crypto_init done");
 
 #ifndef DISABLE_SYSLOG
 	if (opts.usingsyslog) {

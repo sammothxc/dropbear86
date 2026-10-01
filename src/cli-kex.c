@@ -98,7 +98,9 @@ void send_msg_kexdh_init() {
 #endif
 #if DROPBEAR_CURVE25519
 		case DROPBEAR_KEX_CURVE25519:
+			phase_mark("ephemeral X25519 keygen start");
 			cli_ses.curve25519_param = gen_kexcurve25519_param();
+			phase_mark("ephemeral X25519 keygen done");
 			buf_putstring(ses.writepayload, cli_ses.curve25519_param->pub, CURVE25519_LEN);
 			break;
 #endif
@@ -132,6 +134,7 @@ void recv_msg_kexdh_reply() {
 	if (cli_ses.kex_state != KEXDH_INIT_SENT) {
 		dropbear_exit("Received out-of-order kexdhreply");
 	}
+	phase_mark("KEXDH_REPLY received");
 	keytype = ses.newkeys->algo_hostkey;
 	TRACE(("keytype is %d", keytype))
 
@@ -142,6 +145,7 @@ void recv_msg_kexdh_reply() {
 	if (!ses.kexstate.donefirstkex) {
 		/* Only makes sense the first time */
 		checkhostkey(keyblob, keybloblen);
+		phase_mark("host key checked against known_hosts");
 	}
 
 	if (buf_get_pub_key(ses.payload, hostkey, &keytype) != DROPBEAR_SUCCESS) {
@@ -195,6 +199,8 @@ void recv_msg_kexdh_reply() {
 #endif
 	}
 
+	phase_mark("shared secret + exchange hash done");
+
 	/* Clear the local parameter */
 	cli_kex_free_param();
 
@@ -202,6 +208,7 @@ void recv_msg_kexdh_reply() {
 			ses.hash) != DROPBEAR_SUCCESS) {
 		dropbear_exit("Bad hostkey signature");
 	}
+	phase_mark("host signature verified");
 
 	sign_key_free(hostkey);
 	hostkey = NULL;

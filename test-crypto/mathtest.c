@@ -1,35 +1,30 @@
 /*
- * mathtest — standalone Curve25519 scalarmult benchmark for ELKS.
+ * mathtest — standalone Curve25519 / Ed25519 benchmark for ELKS.
  *
- * Builds against the exact src/curve25519.c that ships in `ssh`.  Runs a
- * fixed number of scalar mults against a known-answer test vector and
- * prints elapsed time.  Wrap with `time ./mathtest` on ELKS to get an
- * accurate wall-clock measurement of the field-arithmetic hot path
- * without waiting for a full SSH handshake.
+ * Builds against the exact src/curve25519.c that ships in `ssh` (same
+ * options: X25519 + Ed25519 verify).  Wrap with `time mathtest` on ELKS
+ * to measure the field-arithmetic hot paths without waiting for a full
+ * SSH handshake.
  *
- * Iteration count is deliberately small so the whole run fits comfortably
- * inside a few minutes of a 4.77 MHz 8086.  Bump ITERATIONS if you have
- * patience.
+ *   mathtest       X25519 then Ed25519
+ *   mathtest x     X25519 only: 1 timed scalarmult + 1 untimed check
+ *   mathtest e     Ed25519 only: 1 timed verify (it is its own check),
+ *                  with a per-stage breakdown
+ *
+ * 8088 timing is deterministic (no cache, no branch prediction, no DVFS),
+ * so a single run is a solid measurement.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include "curve25519.h"
+#include "ed25519_vectors.h"
 
-/* One chained scalarmult + one correctness check = 2 scalarmults total.
- * On a 4.77 MHz 8088, each Curve25519 scalarmult is roughly 8-12 minutes
- * with the current implementation, so this keeps the whole run under
- * ~25 minutes. Bump this if you want more averaging — but 8088 timing
- * is fully deterministic (no cache, no branch prediction, no DVFS), so
- * one iteration is a solid measurement on its own. */
-#define ITERATIONS 1
-
-/* Fixed known-answer values from RFC 7748 §5.2 vector 1.
- * Every iteration folds the previous output back into the scalar so the
- * loop can't be constant-folded by the optimiser. */
+/* Fixed known-answer values from RFC 7748 §5.2 vector 1. */
 static const unsigned char scalar_init[32] = {
     0xa5, 0x46, 0xe3, 0x6b, 0xf0, 0x52, 0x7c, 0x9d,
     0x3b, 0x16, 0x15, 0x4b, 0x82, 0x46, 0x5e, 0xdd,
@@ -49,52 +44,126 @@ static const unsigned char expected[32] = {
     0x54, 0xb4, 0x07, 0x55, 0x77, 0xa2, 0x85, 0x52
 };
 
-int main(void) {
-    unsigned char scalar[32], u[32], out[32];
-    int i;
-    time_t t0, t1;
+/* curve25519.c only references genrandom() from key generation and
+ * signing, which mathtest never calls. */
+void genrandom(unsigned char *buf, unsigned int len)
+{
+    memset(buf, 0, len);
+}
 
-    memcpy(scalar, scalar_init, 32);
-    memcpy(u, u_init, 32);
+/* Stage timestamps, recorded silently and printed once the screen is
+ * restored.  Filled by curve25519_profile_mark() from inside verify. */
+#define MAX_MARKS 8
+static struct { const char *what; long cs; } marks[MAX_MARKS];
+static int nmarks;
+static struct timeval mark_t0;
 
-    printf("mathtest: %d chained scalarmult%s + 1 correctness check\n",
-           ITERATIONS, ITERATIONS == 1 ? "" : "s");
-    fflush(stdout);
+static long cs_since(const struct timeval *t0)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (long)(tv.tv_sec - t0->tv_sec) * 100
+        + (long)(tv.tv_usec - t0->tv_usec) / 10000;
+}
 
-    /* Blank the console for the duration: clear screen + cursor home +
-     * hide cursor.  Reduces phosphor wear on the CRT during long runs
-     * (mathtest can take 15-25 min on real 8088 hardware).  Restored
-     * to normal at the end so the elapsed line is visible. */
+void curve25519_profile_mark(const char *what)
+{
+    if (nmarks == 0) {
+        gettimeofday(&mark_t0, NULL);
+    }
+    if (nmarks < MAX_MARKS) {
+        marks[nmarks].what = what;
+        marks[nmarks].cs = cs_since(&mark_t0);
+        nmarks++;
+    }
+}
+
+/* Blank the console for long runs: clear screen + cursor home + hide
+ * cursor.  Reduces phosphor wear on the CRT. */
+static void blank(void)
+{
     fputs("\033[2J\033[H\033[?25l", stdout);
     fflush(stdout);
+}
 
-    t0 = time(NULL);
-    for (i = 0; i < ITERATIONS; i++) {
-        dropbear_curve25519_scalarmult(out, scalar, u);
-        /* Chain output into scalar so the loop is data-dependent. */
-        memcpy(scalar, out, 32);
-        scalar[0] &= 248;
-        scalar[31] &= 127;
-        scalar[31] |= 64;
-    }
-    t1 = time(NULL);
-
-    /* Restore cursor + clear one more time so the result lands on a
-     * fresh screen. */
+static void unblank(void)
+{
     fputs("\033[?25h\033[2J\033[H", stdout);
     fflush(stdout);
+}
 
-    printf("elapsed: %ld seconds\n", (long)(t1 - t0));
+static int test_x25519(void)
+{
+    unsigned char out[32];
+    time_t t0, t1;
 
-    /* Only the FIRST iteration matches RFC 7748 vector 1 (before we started
-     * chaining), so we can't just check the final output.  Re-run once with
-     * fixed inputs to prove the algorithm is still correct. */
+    printf("x25519: 1 timed scalarmult + 1 correctness check\n");
+    fflush(stdout);
+    blank();
+    t0 = time(NULL);
+    dropbear_curve25519_scalarmult(out, scalar_init, u_init);
+    t1 = time(NULL);
+    unblank();
+    printf("x25519 elapsed: %ld seconds\n", (long)(t1 - t0));
+
+    /* Separate untimed run so the check can't be skipped by accident. */
     dropbear_curve25519_scalarmult(out, scalar_init, u_init);
     if (memcmp(out, expected, 32) == 0) {
-        printf("correctness: PASS\n");
+        printf("x25519 correctness: PASS\n");
         return 0;
-    } else {
-        printf("correctness: FAIL\n");
-        return 1;
     }
+    printf("x25519 correctness: FAIL\n");
+    return 1;
+}
+
+static int test_ed25519(void)
+{
+    /* RFC 8032 §7.1 test 1 (empty message). */
+    const unsigned char *pk = (const unsigned char *)ed_vectors[0].pk;
+    const unsigned char *sig = (const unsigned char *)ed_vectors[0].sig;
+    const unsigned char *msg = (const unsigned char *)ed_vectors[0].msg;
+    unsigned long mlen = ed_vectors[0].mlen;
+    struct timeval t0;
+    long total;
+    int rc, i;
+
+    printf("ed25519: 1 timed verify (RFC 8032 test 1)\n");
+    fflush(stdout);
+    nmarks = 0;
+    blank();
+    gettimeofday(&t0, NULL);
+    rc = dropbear_ed25519_verify(msg, mlen, sig, 64, pk);
+    total = cs_since(&t0);
+    unblank();
+
+    printf("ed25519 elapsed: %ld.%02ld seconds\n", total / 100, total % 100);
+    for (i = 1; i < nmarks; i++) {
+        long d = marks[i].cs - marks[i-1].cs;
+        printf("  %-28s %5ld.%02ld s\n", marks[i].what, d / 100, d % 100);
+    }
+    /* A wrong field result makes the recomputed R differ from the one in
+     * the signature, so acceptance of a valid signature is the check. */
+    printf("ed25519 correctness: %s\n", rc == 0 ? "PASS" : "FAIL");
+    return rc == 0 ? 0 : 1;
+}
+
+int main(int argc, char **argv)
+{
+    int do_x = 1, do_e = 1, fails = 0;
+
+    if (argc > 1) {
+        do_x = strchr(argv[1], 'x') != NULL;
+        do_e = strchr(argv[1], 'e') != NULL;
+        if (!do_x && !do_e) {
+            fprintf(stderr, "usage: %s [x|e|xe]\n", argv[0]);
+            return 2;
+        }
+    }
+    if (do_x) {
+        fails += test_x25519();
+    }
+    if (do_e) {
+        fails += test_ed25519();
+    }
+    return fails ? 1 : 0;
 }

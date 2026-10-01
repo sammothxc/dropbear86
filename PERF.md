@@ -10,6 +10,7 @@ Wall-clock time from `ssh user@host` to seeing the password prompt.
 |------------|-----------|---------|--------------------------------------------------|
 | 2026-09-27 | ~2bee5b8  | 41 min  | -Os baseline, pre-mul_widen                      |
 | 2026-09-28 | 34b57a2   | 35 min  | -O2 + mul_widen + car25519 + M reduction cleanup |
+| 2026-10-01 | 7369018   | 8m30s   | Phase 2 asm. **Includes** typing password, login, `exit` -- not to-prompt; needs server `LoginGraceTime` > 2m |
 
 ## mathtest (curve25519 scalarmult isolated)
 
