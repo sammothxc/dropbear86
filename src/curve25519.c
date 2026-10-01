@@ -540,6 +540,135 @@ static int y_lt_p(const gf y) {
   return -1;
 }
 
+/* ---- Variable-time double scalar multiplication, for verify only ----
+ *
+ * Every input to signature verification is public (host key, signature,
+ * message hash), so verify may branch on scalar bits.  This replaces two
+ * separate constant-time ladders (2 x 256 x 2 full additions) with one
+ * shared chain of 256 dedicated doublings plus a signed sliding-window
+ * addition roughly every 6th bit -- about 3.5x fewer field operations.
+ * Key generation and signing keep the constant-time scalarmult(). */
+
+/* p = 2p, extended coordinates, a = -1 ("dbl-2008-hwcd"): 4S + 4M. */
+sv dbl(gf p[4])
+{
+  gf a,b,c,e,f,g,h;
+  S(a,p[0]);
+  S(b,p[1]);
+  S(c,p[2]);
+  A(c,c,c);
+  A(e,p[0],p[1]);
+  S(e,e);
+  Z(e,e,a);
+  Z(e,e,b);
+  Z(g,b,a);
+  Z(f,g,c);
+  A(h,a,b);
+  Z(h,gf0,h);
+  M(p[0],e,f);
+  M(p[1],g,h);
+  M(p[2],f,g);
+  M(p[3],e,h);
+}
+
+/* r = -p */
+sv negpoint(gf r[4],gf p[4])
+{
+  Z(r[0],gf0,p[0]);
+  set25519(r[1],p[1]);
+  set25519(r[2],p[2]);
+  Z(r[3],gf0,p[3]);
+}
+
+/* Recode a 256-bit little-endian scalar (< 2^253) into signed digits
+ * r[i] in {0, +-1, +-3, ..., +-15}, with nonzero digits at least 5
+ * positions apart.  From ref10's ge_double_scalarmult.c (public domain). */
+sv slide(signed char *r,const u8 *a)
+{
+  int i,b,k;
+  FOR(i,256) r[i] = 1 & (a[i >> 3] >> (i & 7));
+  FOR(i,256) {
+    if (r[i]) {
+      for (b = 1; b <= 6 && i + b < 256; ++b) {
+        if (r[i + b]) {
+          if (r[i] + (r[i + b] << b) <= 15) {
+            r[i] += r[i + b] << b;
+            r[i + b] = 0;
+          } else if (r[i] - (r[i + b] << b) >= -15) {
+            r[i] -= r[i + b] << b;
+            for (k = i + b; k < 256; ++k) {
+              if (!r[k]) {
+                r[k] = 1;
+                break;
+              }
+              r[k] = 0;
+            }
+          } else {
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
+/* Odd multiples 1P, 3P, ..., 15P of the two bases.  Static rather than
+ * on the stack: 2 KB is a large bite of ELKS's 4 KB stack. */
+static gf dsm_tbl[2][8][4];
+
+sv dsm_table(gf t[8][4],gf base[4])
+{
+  gf d[4];
+  int i,k;
+  FOR(k,4) set25519(t[0][k],base[k]);
+  FOR(k,4) set25519(d[k],base[k]);
+  dbl(d);
+  for (i = 1; i < 8; i++) {
+    FOR(k,4) set25519(t[i][k],t[i-1][k]);
+    add(t[i],d);
+  }
+}
+
+sv dsm_add_digit(gf p[4],gf t[8][4],int digit)
+{
+  gf n[4];
+  if (digit > 0) {
+    add(p,t[digit/2]);
+  } else if (digit < 0) {
+    negpoint(n,t[(-digit)/2]);
+    add(p,n);
+  }
+}
+
+/* p = a*pa + b*B, where B is the Ed25519 base point.  Variable time. */
+sv double_scalarmult_vartime(gf p[4],const u8 *a,gf pa[4],const u8 *b)
+{
+  signed char an[256],bn[256];
+  gf base[4];
+  int i;
+
+  slide(an,a);
+  slide(bn,b);
+  dsm_table(dsm_tbl[0],pa);
+  set25519(base[0],X);
+  set25519(base[1],Y);
+  set25519(base[2],gf1);
+  M(base[3],X,Y);
+  dsm_table(dsm_tbl[1],base);
+
+  set25519(p[0],gf0);
+  set25519(p[1],gf1);
+  set25519(p[2],gf1);
+  set25519(p[3],gf0);
+  for (i = 255; i >= 0 && !an[i] && !bn[i]; i--) {
+  }
+  for (; i >= 0; i--) {
+    dbl(p);
+    dsm_add_digit(p,dsm_tbl[0],an[i]);
+    dsm_add_digit(p,dsm_tbl[1],bn[i]);
+  }
+}
+
 static int unpackneg(gf r[4],const u8 p[32])
 {
   gf t, chk, num, den, den2, den4, den6;
@@ -606,14 +735,11 @@ int dropbear_ed25519_verify(const u8 *m,u32 mlen,const u8 *s,u32 slen,const u8 *
 
   reduce(h);
   PROFILE_MARK("SHA-512 + reduce mod L");
-  scalarmult(p,q,h);
-  PROFILE_MARK("scalarmult h*A");
-
-  scalarbase(q,s + 32);
-  PROFILE_MARK("scalarbase s*B");
-  add(p,q);
+  /* q = -A from unpackneg, so this is s*B - h*A, which must equal R. */
+  double_scalarmult_vartime(p,h,q,s + 32);
+  PROFILE_MARK("h*A + s*B (double scalarmult)");
   pack(t,p);
-  PROFILE_MARK("add + pack (inversion)");
+  PROFILE_MARK("pack (inversion)");
 
   if (crypto_verify_32(s, t))
     return -1;
