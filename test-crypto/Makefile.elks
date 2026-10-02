@@ -4,7 +4,7 @@
 # the same dropbear options as `ssh`: X25519 + Ed25519 verify), the 8086
 # field asm, libtomcrypt's SHA-512, and mathtest.c.  Deploy with
 # ~/elks-local/push-mathtest.sh, then on ELKS:
-#     time mathtest          # both;  `mathtest x` / `mathtest e` for one
+#     time mathtest          # all;  `mathtest x`, `e` or `c` for one
 #
 # Runs in a couple of minutes instead of a full SSH KEX — useful for
 # iterating on field-arithmetic changes.
@@ -25,9 +25,13 @@ DB_CPPFLAGS = -I $(DBDIR) -I $(DBDIR)/src -I $(DBDIR)/libtomcrypt/src/headers \
 # ... plus stage marks inside Ed25519 verify (see PROFILE_MARK).
 CURVE_CPPFLAGS = $(DB_CPPFLAGS) -DCURVE25519_PROFILE
 
-LTC_SRCS = hashes/sha2/sha512 misc/crypt/crypt_argchk
+LTC_SRCS = hashes/sha2/sha512 misc/crypt/crypt_argchk \
+	stream/chacha/chacha_setup stream/chacha/chacha_ivctr64 \
+	stream/chacha/chacha_crypt stream/chacha/chacha_keystream \
+	mac/poly1305/poly1305 misc/zeromem
 
-OBJS = $(OBJDIR)/mathtest.o $(OBJDIR)/curve25519.o $(OBJDIR)/fe25519_ia16.o \
+OBJS = $(OBJDIR)/mathtest.o $(OBJDIR)/mathtest_chacha.o $(OBJDIR)/chachapoly.o \
+	$(OBJDIR)/curve25519.o $(OBJDIR)/fe25519_ia16.o \
 	$(addprefix $(OBJDIR)/ltc/,$(addsuffix .o,$(LTC_SRCS)))
 
 GUARD = $(DBDIR)/default_options_guard.h
@@ -45,6 +49,15 @@ $(GUARD):
 $(OBJDIR)/mathtest.o: mathtest.c ed25519_vectors.h curve25519.h
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -I . -c $< -o $@
+
+# Built with Dropbear's real headers, like the shipped code.
+$(OBJDIR)/mathtest_chacha.o: mathtest_chacha.c chachapoly_vectors.h $(GUARD) $(DBDIR)/localoptions.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(DB_CPPFLAGS) -c $< -o $@
+
+$(OBJDIR)/chachapoly.o: $(DBDIR)/src/chachapoly.c $(GUARD) $(DBDIR)/localoptions.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(DB_CPPFLAGS) -c $< -o $@
 
 $(OBJDIR)/curve25519.o: $(DBDIR)/src/curve25519.c $(GUARD) $(DBDIR)/localoptions.h
 	@mkdir -p $(dir $@)
