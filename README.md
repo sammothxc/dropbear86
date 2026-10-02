@@ -144,11 +144,13 @@ own. Full measurement history is in [`PERF.md`](PERF.md).
 
 ## Provenance
 
-Forked from a fork of [`mkj/dropbear`](https://github.com/mkj/dropbear) —
-the ELKS retargeting work was started by the previous maintainer, who is
-looking to hand it off. The full upstream Dropbear source tree is retained
-in this repo because the QEMU test harness also builds a host-side Dropbear
-server fixture from the same base.
+Based on [Dropbear](https://github.com/mkj/dropbear) 2025.89 by Matt
+Johnston. The ELKS retargeting work was started by the previous maintainer
+in [`parabyte/ssh-daemon-project`](https://github.com/parabyte/ssh-daemon-project),
+which was imported here as this repo's first commit and continued from
+there. The full upstream Dropbear source tree is retained because the QEMU
+test harness also builds a host-side Dropbear server fixture from the same
+base.
 
 Files not in the ELKS build path (server-side code, agent forwarding, TCP
 forwarding, keyimport, RSA/DSS/ECDSA implementations, libtommath) are still
