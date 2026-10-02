@@ -103,6 +103,7 @@ void cli_connected(int result, int sock, void* userdata, const char *errstring)
 		dropbear_exit("Connect failed: %s", errstring);
 	}
 	myses->sock_in = myses->sock_out = sock;
+	phase_mark("TCP connected");
 	DEBUG1(("cli_connected"))
 	ses.socket_prio = DROPBEAR_PRIO_NORMAL;
 	/* switches to lowdelay */

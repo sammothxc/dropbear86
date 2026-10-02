@@ -49,6 +49,7 @@ static void hashkeys(unsigned char *out, unsigned int outlen,
 
 /* Send our list of algorithms we can use */
 void send_msg_kexinit() {
+	phase_mark("KEXINIT send");
 
 	CHECKCLEARTOWRITE();
 	buf_putbyte(ses.writepayload, SSH_MSG_KEXINIT);
@@ -188,6 +189,7 @@ void send_msg_newkeys() {
 
 /* Bring the new keys into use after a key exchange */
 void recv_msg_newkeys() {
+	phase_mark("NEWKEYS received");
 
 	TRACE(("enter recv_msg_newkeys"))
 
@@ -505,6 +507,7 @@ static void gen_new_zstream_trans() {
  * later in the key exchange. No response is sent, as the client should
  * initiate the diffie-hellman key exchange */
 void recv_msg_kexinit() {
+	phase_mark("KEXINIT received");
 	
 	unsigned int kexhashbuf_len = 0;
 	unsigned int remote_ident_len = 0;

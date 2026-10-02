@@ -123,6 +123,7 @@ void cli_auth_password() {
 	DEBUG1(("enter cli_auth_password"))
 	CHECKCLEARTOWRITE();
 
+	phase_mark("password prompt");
 	snprintf(prompt, sizeof(prompt), "%s@%s's password: ", 
 				cli_opts.username, cli_opts.remotehost);
 #if DROPBEAR_CLI_ASKPASS_HELPER

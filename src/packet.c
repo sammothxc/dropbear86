@@ -38,6 +38,7 @@
 #include "runopts.h"
 
 static int read_packet_init(void);
+static int sock_read(void *buf, unsigned int len);
 static void make_mac(unsigned int seqno, const struct key_context_directional * key_state,
 		buffer * clear_buf, unsigned int clear_len, 
 		unsigned char *output_mac);
@@ -147,6 +148,80 @@ void write_packet() {
 /* Non-blocking function reading available portion of a packet into the
  * ses's buffer, decrypting the length if encrypted, decrypting the
  * full portion if possible */
+/* Prefetch of received bytes into our own buffer.
+ *
+ * ELKS's ktcp polls every clock tick for as long as received data sits
+ * unread by the application.  On an 8088 that takes about half the CPU,
+ * so the multi-minute KEX computations ran at half speed while the
+ * server's NEWKEYS waited in the network stack.  packet_prefetch() is
+ * called before long computations to drain the socket; reads then take
+ * from this buffer first, and the session loop treats pending prefetched
+ * bytes as readable (see packet_prefetch_pending()). */
+#define PREFETCH_SIZE 1024
+static unsigned char *prefetch_buf = NULL;
+static unsigned int prefetch_len = 0, prefetch_pos = 0;
+
+void packet_prefetch() {
+	int n;
+	fd_set fds;
+	struct timeval tv;
+
+	if (ses.sock_in == -1 || !ses.remoteident) {
+		return;
+	}
+	if (prefetch_buf == NULL) {
+		prefetch_buf = m_malloc(PREFETCH_SIZE);
+	}
+	if (prefetch_pos > 0) {
+		memmove(prefetch_buf, prefetch_buf + prefetch_pos,
+			prefetch_len - prefetch_pos);
+		prefetch_len -= prefetch_pos;
+		prefetch_pos = 0;
+	}
+	while (prefetch_len < PREFETCH_SIZE) {
+		/* Only read what's already there.  ELKS's inet_read() sleeps
+		 * until data arrives even on an O_NONBLOCK socket, so poll
+		 * with a zero-timeout select() first. */
+		DROPBEAR_FD_ZERO(&fds);
+		FD_SET(ses.sock_in, &fds);
+		tv.tv_sec = 0;
+		tv.tv_usec = 0;
+		if (select(ses.sock_in + 1, &fds, NULL, NULL, &tv) <= 0) {
+			break;
+		}
+		n = read(ses.sock_in, prefetch_buf + prefetch_len,
+			PREFETCH_SIZE - prefetch_len);
+		if (n <= 0) {
+			/* EAGAIN, EOF or error: the normal read path reports
+			 * EOF/errors once the prefetched bytes are consumed. */
+			break;
+		}
+		prefetch_len += n;
+	}
+}
+
+int packet_prefetch_pending() {
+	return prefetch_pos < prefetch_len;
+}
+
+static int sock_read(void *buf, unsigned int len) {
+	unsigned int n;
+
+	if (prefetch_pos < prefetch_len) {
+		n = prefetch_len - prefetch_pos;
+		if (n > len) {
+			n = len;
+		}
+		memcpy(buf, prefetch_buf + prefetch_pos, n);
+		prefetch_pos += n;
+		if (prefetch_pos == prefetch_len) {
+			prefetch_pos = prefetch_len = 0;
+		}
+		return n;
+	}
+	return read(ses.sock_in, buf, len);
+}
+
 void read_packet() {
 
 	int len;
@@ -180,7 +255,7 @@ void read_packet() {
 		 */
 		len = 0;
 	} else {
-		len = read(ses.sock_in, buf_getptr(ses.readbuf, maxlen), maxlen);
+		len = sock_read(buf_getptr(ses.readbuf, maxlen), maxlen);
 
 		if (len == 0) {
 			ses.remoteclosed();
@@ -231,8 +306,7 @@ static int read_packet_init() {
 	maxlen = blocksize - ses.readbuf->pos;
 			
 	/* read the rest of the packet if possible */
-	slen = read(ses.sock_in, buf_getwriteptr(ses.readbuf, maxlen),
-			maxlen);
+	slen = sock_read(buf_getwriteptr(ses.readbuf, maxlen), maxlen);
 	if (slen == 0) {
 		ses.remoteclosed();
 	}

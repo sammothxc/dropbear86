@@ -38,3 +38,5 @@ libtommath/libtommath.a
 .*.swp
 .DS_Store
 CLAUDE.md
+test-crypto/test_ed25519
+dropbear86_version.h

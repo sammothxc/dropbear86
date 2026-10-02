@@ -31,10 +31,18 @@ LTC_SRCS = \
 	stream/chacha/chacha_setup stream/chacha/chacha_ivctr64 \
 	stream/chacha/chacha_crypt stream/chacha/chacha_keystream
 
-DBCLIENT_OBJS = $(addprefix $(OBJDIR)/,$(addsuffix .o,$(DBCLIENT_SRCS)))
+# Hand-written 8086 field arithmetic for curve25519.c (generated from
+# src/fe25519_ia16.py; the .S is committed so no Python is needed here).
+ASM_SRCS = fe25519_ia16
+
+DBCLIENT_OBJS = $(addprefix $(OBJDIR)/,$(addsuffix .o,$(DBCLIENT_SRCS) $(ASM_SRCS)))
 LTC_OBJS = $(addprefix $(OBJDIR)/ltc/,$(addsuffix .o,$(LTC_SRCS)))
 
-.PHONY: all clean
+# Build identity for `ssh -V`.  Regenerated every make but only rewritten
+# when the commit (or dirty state) changes, so it doesn't force rebuilds.
+DB86_VERSION := $(shell git describe --always --dirty 2>/dev/null || echo unknown)
+
+.PHONY: all clean FORCE
 
 all: $(DBCLIENT)
 
@@ -46,13 +54,26 @@ default_options_guard.h: src/default_options.h src/ifndef_wrapper.sh
 	@./src/ifndef_wrapper.sh < src/default_options.h >> $@.tmp
 	@mv $@.tmp $@
 
+dropbear86_version.h: FORCE
+	@echo '#define DROPBEAR86_VERSION "$(DB86_VERSION)"' > $@.tmp
+	@cmp -s $@.tmp $@ && rm -f $@.tmp || mv $@.tmp $@
+
+$(OBJDIR)/curve25519.o: CPPFLAGS += -DCURVE25519_PHASE_MARKS
+
+$(OBJDIR)/common-runopts.o: dropbear86_version.h
+$(OBJDIR)/common-runopts.o: CPPFLAGS += -include dropbear86_version.h
+
 $(OBJDIR)/%.o: src/%.c default_options_guard.h localoptions.h
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+
+$(OBJDIR)/%.o: src/%.S
+	@mkdir -p $(dir $@)
+	$(CC) -mcmodel=medium -melks-libc -c $< -o $@
 
 $(OBJDIR)/ltc/%.o: libtomcrypt/src/%.c default_options_guard.h localoptions.h
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(OBJDIR) $(DBCLIENT) default_options_guard.h
+	rm -rf $(OBJDIR) $(DBCLIENT) default_options_guard.h dropbear86_version.h

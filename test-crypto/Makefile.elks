@@ -1,14 +1,13 @@
-# ELKS build for mathtest — a standalone curve25519 scalarmult benchmark.
+# ELKS build for mathtest — a standalone Curve25519 / Ed25519 benchmark.
 #
-# Builds a small ia16 a.out binary from src/curve25519.c plus mathtest.c
-# and just enough ELKS libc.  Deploy with:
-#     make -f Makefile.elks
-#     cp mathtest /srv/ftp/mathtest      # or however you transfer
-# and on ELKS:
-#     time mathtest
+# Builds a small ia16 a.out binary from src/curve25519.c (compiled with
+# the same dropbear options as `ssh`: X25519 + Ed25519 verify), the 8086
+# field asm, libtomcrypt's SHA-512, and mathtest.c.  Deploy with
+# ~/elks-local/push-mathtest.sh, then on ELKS:
+#     time mathtest          # both;  `mathtest x` / `mathtest e` for one
 #
-# Runs in seconds instead of a full SSH KEX in minutes — useful for
-# iterating on Phase 2 assembly changes.
+# Runs in a couple of minutes instead of a full SSH KEX — useful for
+# iterating on field-arithmetic changes.
 
 TOPDIR ?= ..
 
@@ -16,17 +15,21 @@ CC = ia16-elf-gcc
 OBJDIR = obj-elks
 BINARY = mathtest
 
-CPPFLAGS = -I . -I $(TOPDIR)/src -I $(TOPDIR)/libtomcrypt/src/headers \
-	-DDROPBEAR_CURVE25519_DEP=1 -DDROPBEAR_ED25519=0
-
-# Match the flags used in the main Makefile.elks so mathtest timings are
-# a valid proxy for ssh's crypto path.
+# Match the main Makefile.elks so timings are a valid proxy for ssh.
 CFLAGS = -mcmodel=medium -melks-libc -mtune=i8086 -Wall -O2 \
 	-fomit-frame-pointer -fno-strict-overflow -Wno-pointer-sign
+# Dropbear's real headers and options for the shipped code ...
+DB_CPPFLAGS = -I $(TOPDIR) -I $(TOPDIR)/src -I $(TOPDIR)/libtomcrypt/src/headers \
+	-DLOCALOPTIONS_H_EXISTS -DDROPBEAR_CLIENT -DDROPBEAR_ELKS_WEAK_RANDOM=1
+# ... plus stage marks inside Ed25519 verify (see PROFILE_MARK).
+CURVE_CPPFLAGS = $(DB_CPPFLAGS) -DCURVE25519_PROFILE
 
-SRCS = mathtest.c curve25519.c
+LTC_SRCS = hashes/sha2/sha512 misc/crypt/crypt_argchk
 
-OBJS = $(addprefix $(OBJDIR)/,$(SRCS:.c=.o))
+OBJS = $(OBJDIR)/mathtest.o $(OBJDIR)/curve25519.o $(OBJDIR)/fe25519_ia16.o \
+	$(addprefix $(OBJDIR)/ltc/,$(addsuffix .o,$(LTC_SRCS)))
+
+GUARD = $(TOPDIR)/default_options_guard.h
 
 .PHONY: all clean
 
@@ -35,9 +38,24 @@ all: $(BINARY)
 $(BINARY): $(OBJS)
 	$(CC) -mcmodel=medium -melks-libc -mtune=i8086 -maout-heap=24576 -maout-stack=4096 -o $@ $(OBJS)
 
-$(OBJDIR)/%.o: %.c
+$(GUARD):
+	$(MAKE) -C $(TOPDIR) -f Makefile.elks default_options_guard.h
+
+$(OBJDIR)/mathtest.o: mathtest.c ed25519_vectors.h curve25519.h
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -I . -c $< -o $@
+
+$(OBJDIR)/curve25519.o: $(TOPDIR)/src/curve25519.c $(GUARD) $(TOPDIR)/localoptions.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(CURVE_CPPFLAGS) -c $< -o $@
+
+$(OBJDIR)/fe25519_ia16.o: $(TOPDIR)/src/fe25519_ia16.S
+	@mkdir -p $(dir $@)
+	$(CC) -mcmodel=medium -melks-libc -c $< -o $@
+
+$(OBJDIR)/ltc/%.o: $(TOPDIR)/libtomcrypt/src/%.c $(GUARD) $(TOPDIR)/localoptions.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(DB_CPPFLAGS) -c $< -o $@
 
 clean:
 	rm -rf $(OBJDIR) $(BINARY)

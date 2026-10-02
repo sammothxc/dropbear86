@@ -10,6 +10,12 @@ Wall-clock time from `ssh user@host` to seeing the password prompt.
 |------------|-----------|---------|--------------------------------------------------|
 | 2026-09-27 | ~2bee5b8  | 41 min  | -Os baseline, pre-mul_widen                      |
 | 2026-09-28 | 34b57a2   | 35 min  | -O2 + mul_widen + car25519 + M reduction cleanup |
+| 2026-10-01 | 7369018   | 8m30s   | Phase 2 asm. **Includes** typing password, login, `exit` -- not to-prompt; needs server `LoginGraceTime` > 2m |
+| 2026-10-01 | 66eca10   | ~3 min  | ~55 s binary load (ELKS relocations) + 124 s main() to password prompt. Double-scalar verify, first-guess key reuse, socket drain vs ktcp polling |
+
+Phase timing for 66eca10 (`DROPBEAR_PHASE_TIMING=1`, seconds since main()):
+seedrandom 3.7, X25519 keygen 4-35, server KEXINIT 38, KEXDH_REPLY 39,
+shared secret + exchange hash 73, Ed25519 verify 122, password prompt 124.
 
 ## mathtest (curve25519 scalarmult isolated)
 
@@ -20,11 +26,23 @@ included in the timed elapsed).
 | Date       | Commit    | Iters | Elapsed | Per-op   | Notes                            |
 |------------|-----------|-------|---------|----------|----------------------------------|
 | 2026-09-30 | 3694f3a   | 4     | 4316 s  | 1079 s   | Phase 2 baseline. -O2, mul_widen |
+| 2026-10-01 | 7369018   | 1     | 31 s    | 31 s     | Phase 2: 8086 asm M/S/A/Z, 16-bit limbs (~35x) |
 
-Per-op = ~18 min. Phase 2 asm work will target this number.
+Per-op = ~18 min at the Phase 2 baseline; 31 s after Phase 2.
+`time mathtest` reports ~2x elapsed (1m4s for the 31 s run) because the
+untimed correctness check is a second scalarmult.
+
+## mathtest e (Ed25519 verify, RFC 8032 test 1)
+
+Per-stage breakdown printed by `mathtest e` (seconds).
+
+| Date       | Commit    | Total    | decompress A | SHA-512+modL | h*A + s*B          | pack (inv) | Notes |
+|------------|-----------|----------|--------------|--------------|--------------------|------------|-------|
+| 2026-10-01 | 2fe537b   | 136.28   | 5.26         | 3.65         | 122.11 (61.05+61.06) | 5.25     | Two constant-time ladders |
+| 2026-10-01 | 5c2c457   | 47.33*   | 5.28         | 3.65         | 33.27              | 5.13       | Double-scalar sliding window (3.7x on this stage). *Sum of stages; total line not recorded |
 
 ## Roadmap targets (rough)
 
-- Phase 2 (ia16 asm for M/S): 3-5x per-op speedup → target ~3-6 min/scalarmult
+- Phase 2 (ia16 asm for M/S): target was 3-5x; got ~35x (1079 s → 31 s). Done.
 - Phase 3 (precomputed base tables): halves the first-Curve25519 mult per KEX
 - Phase B (16-bit-limb C rewrite): 2-3x if pursued cleanly, alone or stacked with Phase 2

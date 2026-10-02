@@ -607,6 +607,29 @@ void setnonblocking(int fd) {
 	TRACE(("leave setnonblocking"))
 }
 
+/* Handshake phase timing for slow targets (ELKS on an 8088).  With
+ * DROPBEAR_PHASE_TIMING set in the environment, prints the elapsed time
+ * at each step to stderr.  Times count from the first call, right after
+ * argument parsing, so program load time is not included. */
+void phase_mark(const char *what) {
+	static int enabled = -1;
+	static struct timeval t0;
+	struct timeval tv;
+	long cs;
+
+	if (enabled < 0) {
+		enabled = getenv("DROPBEAR_PHASE_TIMING") != NULL;
+		gettimeofday(&t0, NULL);
+	}
+	if (!enabled) {
+		return;
+	}
+	gettimeofday(&tv, NULL);
+	cs = (long)(tv.tv_sec - t0.tv_sec) * 100
+		+ (long)(tv.tv_usec - t0.tv_usec) / 10000;
+	fprintf(stderr, "[%4ld.%02lds] %s\r\n", cs / 100, cs % 100, what);
+}
+
 void disallow_core() {
 #ifdef RLIMIT_CORE
 	struct rlimit lim = {0};
