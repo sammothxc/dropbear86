@@ -35,6 +35,17 @@ Per-stage breakdown printed by `mathtest e` (seconds).
 | 2026-10-01 | 2fe537b   | 136.28   | 5.26         | 3.65         | 122.11 (61.05+61.06) | 5.25     | Two constant-time ladders |
 | 2026-10-01 | 5c2c457   | 47.33*   | 5.28         | 3.65         | 33.27              | 5.13       | Double-scalar sliding window (3.7x on this stage). *Sum of stages; total line not recorded |
 
+## mathtest c (ChaCha20-Poly1305 per keystroke)
+
+A keystroke round is what the client does per typed character: encrypt the 20-byte keystroke packet, then decrypt the echo. Interactive typing on the Compaq has ~1.5 s keystroke-to-echo latency in total (tracked in issue 3).
+
+| Date | Commit | Per keystroke | Encrypt one packet | ChaCha20 block | Poly1305 MAC | Notes |
+|------|--------|---------------|--------------------|----------------|--------------|-------|
+| 2026-10-02 | 00448f1 | 562 ms | 250 ms | 56 ms | 84 ms | libtomcrypt C (Poly1305 via 64-bit libgcc multiplies) |
+| 2026-10-02 | 886e5de | 504 ms | 221 ms | 57 ms | 54 ms | Poly1305 with 16-bit limbs (C) |
+
+Per keystroke there are 7 ChaCha20 blocks (3 to send, 4 to receive, including the Poly1305 key and length blocks) and 2 Poly1305 MACs; the per-primitive numbers add up to the measured round.
+
 ## Roadmap targets (rough)
 
 - Phase 2 (ia16 asm for M/S): target was 3-5x; got ~35x (1079 s → 31 s). Done.
