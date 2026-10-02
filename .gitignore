@@ -1,6 +1,7 @@
 # generated during ELKS build
 default_options_guard.h
 obj-elks/
+obj-elks-timing/
 
 # host build outputs
 obj/

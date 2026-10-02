@@ -1,10 +1,23 @@
 TOPDIR ?= ../..
 
 CC = ia16-elf-gcc
+# DB86_TIMING=1 (on the command line or in the environment, e.g.
+# `DB86_TIMING=1 ~/elks-local/push-ssh.sh`) builds a timing ssh: handshake
+# phase timestamps and per-keystroke latency samples on stderr, always on.
+# Normal builds leave that code out.  The timing build uses its own object
+# directory, and its version string ends in +timing, which also makes
+# switching between the two always relink ./ssh.
+DB86_TIMING ?=
+ifneq ($(DB86_TIMING),)
+OBJDIR = obj-elks-timing
+TIMING_CPPFLAGS = -DDROPBEAR86_TIMING=1
+TIMING_SUFFIX = +timing
+else
 OBJDIR = obj-elks
+endif
 DBCLIENT = ssh
 
-CPPFLAGS = -I. -I src -I libtomcrypt/src/headers -DLOCALOPTIONS_H_EXISTS -DDROPBEAR_CLIENT -DDROPBEAR_ELKS_WEAK_RANDOM=1
+CPPFLAGS = -I. -I src -I libtomcrypt/src/headers -DLOCALOPTIONS_H_EXISTS -DDROPBEAR_CLIENT -DDROPBEAR_ELKS_WEAK_RANDOM=1 $(TIMING_CPPFLAGS)
 # -O2 works on QEMU (verified end-to-end KEX). Earlier hang on real Compaq
 # hardware turned out to be heap sizing, not compiler codegen — once the
 # heap dropped from 40 KB to 24 KB, -Os ran fine and -O2 remains untested
@@ -42,13 +55,13 @@ LTC_OBJS = $(addprefix $(OBJDIR)/ltc/,$(addsuffix .o,$(LTC_SRCS)))
 
 # Build identity for `ssh -V`.  Regenerated every make but only rewritten
 # when the commit (or dirty state) changes, so it doesn't force rebuilds.
-DB86_VERSION := $(shell git describe --always --dirty 2>/dev/null || echo unknown)
+DB86_VERSION := $(shell git describe --always --dirty 2>/dev/null || echo unknown)$(TIMING_SUFFIX)
 
 .PHONY: all clean FORCE
 
 all: $(DBCLIENT)
 
-$(DBCLIENT): default_options_guard.h $(DBCLIENT_OBJS) $(LTC_OBJS)
+$(DBCLIENT): default_options_guard.h dropbear86_version.h $(DBCLIENT_OBJS) $(LTC_OBJS)
 	$(CC) -mcmodel=medium -melks-libc -mtune=i8086 -maout-heap=24576 -maout-stack=4096 -o $@ $(DBCLIENT_OBJS) $(LTC_OBJS)
 
 default_options_guard.h: src/default_options.h src/ifndef_wrapper.sh
@@ -60,7 +73,9 @@ dropbear86_version.h: FORCE
 	@echo '#define DROPBEAR86_VERSION "$(DB86_VERSION)"' > $@.tmp
 	@cmp -s $@.tmp $@ && rm -f $@.tmp || mv $@.tmp $@
 
+ifneq ($(DB86_TIMING),)
 $(OBJDIR)/curve25519.o: CPPFLAGS += -DCURVE25519_PHASE_MARKS
+endif
 
 $(OBJDIR)/common-runopts.o: dropbear86_version.h
 $(OBJDIR)/common-runopts.o: CPPFLAGS += -include dropbear86_version.h
@@ -78,4 +93,4 @@ $(OBJDIR)/ltc/%.o: libtomcrypt/src/%.c default_options_guard.h localoptions.h
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(OBJDIR) $(DBCLIENT) default_options_guard.h dropbear86_version.h
+	rm -rf obj-elks obj-elks-timing $(DBCLIENT) default_options_guard.h dropbear86_version.h

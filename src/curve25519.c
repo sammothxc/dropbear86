@@ -39,7 +39,7 @@
 void curve25519_profile_mark(const char *what);
 #define PROFILE_MARK(what) curve25519_profile_mark(what)
 #elif defined(CURVE25519_PHASE_MARKS)
-/* ssh build: report verify stages via DROPBEAR_PHASE_TIMING. */
+/* ssh timing build (DB86_TIMING=1): report verify stages via phase_mark. */
 void phase_mark(const char *what);
 #define PROFILE_MARK(what) phase_mark("  " what)
 #else

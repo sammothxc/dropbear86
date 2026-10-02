@@ -610,19 +610,14 @@ void setnonblocking(int fd) {
 	TRACE(("leave setnonblocking"))
 }
 
-/* Handshake phase timing for slow targets (ELKS on an 8088).  With
- * DROPBEAR_PHASE_TIMING set in the environment, prints the elapsed time
- * at each step to stderr.  Times count from the first call, right after
- * argument parsing, so program load time is not included. */
-static int phase_enabled = -1;
-
-static int phase_timing_enabled(void) {
-	if (phase_enabled < 0) {
-		phase_enabled = getenv("DROPBEAR_PHASE_TIMING") != NULL;
-	}
-	return phase_enabled;
-}
-
+#if DROPBEAR86_TIMING
+/* Timing build only (make -f Makefile.elks DB86_TIMING=1); in normal
+ * builds dbutil.h turns these into no-ops so the code and its strings
+ * aren't in the binary.
+ *
+ * Handshake phase timing for slow targets (ELKS on an 8088): prints the
+ * elapsed time at each step to stderr.  Times count from the first call,
+ * right after argument parsing, so program load time is not included. */
 void phase_mark(const char *what) {
 	static int started = 0;
 	static struct timeval t0;
@@ -633,16 +628,13 @@ void phase_mark(const char *what) {
 		started = 1;
 		gettimeofday(&t0, NULL);
 	}
-	if (!phase_timing_enabled()) {
-		return;
-	}
 	gettimeofday(&tv, NULL);
 	cs = (long)(tv.tv_sec - t0.tv_sec) * 100
 		+ (long)(tv.tv_usec - t0.tv_usec) / 10000;
 	fprintf(stderr, "[%4ld.%02lds] %s\r\n", cs / 100, cs % 100, what);
 }
 
-/* Keystroke latency breakdown, also enabled by DROPBEAR_PHASE_TIMING.
+/* Keystroke latency breakdown (timing build only).
  * One keystroke at a time is followed through five points: read from
  * the keyboard (KS_KEY), its packet written to the socket (KS_SENT), the
  * next incoming packet starting to arrive (KS_ARRIVED), that packet
@@ -667,9 +659,6 @@ void keystroke_mark(int stage) {
 	struct timeval now;
 	int i;
 
-	if (!phase_timing_enabled()) {
-		return;
-	}
 	gettimeofday(&now, NULL);
 	if (stage == KS_KEY) {
 		if (ks_stage == -1 || ks_ms_between(&ks_t[0], &now) > 3000) {
@@ -714,7 +703,7 @@ void keystroke_report() {
 	long total = 0;
 	int i;
 
-	if (!phase_timing_enabled() || ks_count == 0) {
+	if (ks_count == 0) {
 		return;
 	}
 	fprintf(stderr, "\r\nKeystroke timing, average of %u keystrokes:\r\n", ks_count);
@@ -724,6 +713,8 @@ void keystroke_report() {
 	}
 	fprintf(stderr, "  %-30s %5ld ms\r\n", "total", total / (long)ks_count);
 }
+
+#endif /* DROPBEAR86_TIMING */
 
 void disallow_core() {
 #ifdef RLIMIT_CORE
