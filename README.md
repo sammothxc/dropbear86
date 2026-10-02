@@ -82,7 +82,7 @@ Set `DROPBEAR_PHASE_TIMING=1` in the environment to print a timestamp at each ha
 
 ## Provenance
 
-Based on [Dropbear](https://github.com/mkj/dropbear) 2025.89 by Matt Johnston. The ELKS retargeting work was started by the previous maintainer in [`parabyte/ssh-daemon-project`](https://github.com/parabyte/ssh-daemon-project), which was imported here as this repo's first commit and continued from there. The full upstream Dropbear source tree is retained because the QEMU test harness also builds a host-side Dropbear server fixture from the same base.
+Based on [Dropbear](https://github.com/mkj/dropbear) by Matt Johnston, specifically its development branch shortly after the 2025.89 release (upstream commit [`8b579571`](https://github.com/mkj/dropbear/commit/8b579571), April 2026). The ELKS retargeting work was started by the previous maintainer in [`parabyte/ssh-daemon-project`](https://github.com/parabyte/ssh-daemon-project), which was imported here as this repo's first commit and continued from there. The full upstream Dropbear source tree is retained because the QEMU test harness also builds a host-side Dropbear server fixture from the same base.
 
 Files not in the ELKS build path (server-side code, agent forwarding, TCP forwarding, keyimport, RSA/DSS/ECDSA implementations, libtommath) are still present but unbuilt; the ia16 type audit only touched the client-side files actually compiled into `ssh`. If you want to build the host-side tools too, see `INSTALL.md` and `DEVELOPING.md` inherited from upstream.
 
