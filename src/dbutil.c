@@ -107,6 +107,9 @@ void dropbear_exit(const char* format, ...) {
 	va_start(param, format);
 	_dropbear_exit(EXIT_FAILURE, format, param);
 	va_end(param);
+	/* The handlers all exit, but dropbear_exit_fn isn't declared
+	 * noreturn, so make the promise in our prototype explicit. */
+	exit(EXIT_FAILURE);
 }
 
 void generic_dropbear_exit(int exitcode, const char* format, 
