@@ -166,6 +166,7 @@ void session_loop(void(*loophandler)(void)) {
 	/* main loop, select()s for all sockets in use */
 	for(;;) {
 		const int writequeue_has_space = (ses.writequeue_len <= 2*TRANS_MAX_PAYLOAD_LEN);
+		int want_read = 0;
 
 		timeout.tv_sec = select_timeout();
 		timeout.tv_usec = 0;
@@ -199,6 +200,12 @@ void session_loop(void(*loophandler)(void)) {
 			&& (ses.remoteident || isempty(&ses.writequeue)) 
 			&& writequeue_has_space) {
 			FD_SET(ses.sock_in, &readfd);
+			want_read = 1;
+		}
+		/* Bytes already pulled in by packet_prefetch() won't wake
+		 * select(), so don't wait if there are some. */
+		if (want_read && packet_prefetch_pending()) {
+			timeout.tv_sec = 0;
 		}
 
 		/* Ordering is important, this test must occur after any other function
@@ -242,7 +249,8 @@ void session_loop(void(*loophandler)(void)) {
 
 		/* process session socket's incoming data */
 		if (ses.sock_in != -1) {
-			if (FD_ISSET(ses.sock_in, &readfd)) {
+			if (FD_ISSET(ses.sock_in, &readfd)
+				|| (want_read && ses.remoteident && packet_prefetch_pending())) {
 				if (!ses.remoteident) {
 					/* blocking read of the version string */
 					read_session_identification();

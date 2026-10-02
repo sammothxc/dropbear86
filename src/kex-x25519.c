@@ -78,6 +78,7 @@ void kexcurve25519_comb_key(const struct kex_curve25519_param *param, const buff
     const unsigned char* Q_S = NULL;
 
     kexcurve25519_derive(param, buf_pub_them, out);
+    phase_mark("  X25519 shared secret computed");
 
     ses.dh_K_bytes = buf_new(CURVE25519_LEN + 5);
     put_ssh_mpint_bytes(ses.dh_K_bytes, out, CURVE25519_LEN);
@@ -104,6 +105,7 @@ void kexcurve25519_comb_key(const struct kex_curve25519_param *param, const buff
 
     /* calculate the hash H to sign */
     finish_kexhashbuf();
+    phase_mark("  exchange hash (SHA-256) done");
 }
 
 #endif /* DROPBEAR_CURVE25519 */

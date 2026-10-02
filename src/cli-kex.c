@@ -70,6 +70,9 @@ static void cli_kex_free_param(void) {
 }
 
 void send_msg_kexdh_init() {
+#if DROPBEAR_CURVE25519
+	struct kex_curve25519_param *reuse_curve25519 = NULL;
+#endif
 	TRACE(("send_msg_kexdh_init()"))	
 
 	CHECKCLEARTOWRITE();
@@ -80,6 +83,17 @@ void send_msg_kexdh_init() {
 	}
 #endif
 
+#if DROPBEAR_CURVE25519
+	/* If our first-guess KEXDH_INIT was wrong the server discards it and
+	 * we send another.  The X25519 ephemeral key generated for the guess
+	 * is still unused for any completed exchange, so keep it rather than
+	 * spending a second scalarmult (~31 s on an 8088).  The param is
+	 * freed once the exchange completes, so rekeys get a fresh key. */
+	if (ses.newkeys->algo_kex->mode == DROPBEAR_KEX_CURVE25519) {
+		reuse_curve25519 = cli_ses.curve25519_param;
+		cli_ses.curve25519_param = NULL;
+	}
+#endif
 	cli_kex_free_param();
 
 	buf_putbyte(ses.writepayload, SSH_MSG_KEXDH_INIT);
@@ -98,9 +112,14 @@ void send_msg_kexdh_init() {
 #endif
 #if DROPBEAR_CURVE25519
 		case DROPBEAR_KEX_CURVE25519:
-			phase_mark("ephemeral X25519 keygen start");
-			cli_ses.curve25519_param = gen_kexcurve25519_param();
-			phase_mark("ephemeral X25519 keygen done");
+			if (reuse_curve25519) {
+				cli_ses.curve25519_param = reuse_curve25519;
+				phase_mark("ephemeral X25519 key reused from first guess");
+			} else {
+				phase_mark("ephemeral X25519 keygen start");
+				cli_ses.curve25519_param = gen_kexcurve25519_param();
+				phase_mark("ephemeral X25519 keygen done");
+			}
 			buf_putstring(ses.writepayload, cli_ses.curve25519_param->pub, CURVE25519_LEN);
 			break;
 #endif
@@ -153,6 +172,10 @@ void recv_msg_kexdh_reply() {
 		dropbear_exit("Bad KEX packet");
 	}
 
+	/* The server's NEWKEYS is usually already here; take it off ktcp's
+	 * hands so it doesn't poll through the computations below. */
+	packet_prefetch();
+
 	/* Derive the shared secret */
 	switch (ses.newkeys->algo_kex->mode) {
 #if DROPBEAR_NORMAL_DH
@@ -203,6 +226,8 @@ void recv_msg_kexdh_reply() {
 
 	/* Clear the local parameter */
 	cli_kex_free_param();
+
+	packet_prefetch();
 
 	if (buf_verify(ses.payload, hostkey, ses.newkeys->algo_signature, 
 			ses.hash) != DROPBEAR_SUCCESS) {

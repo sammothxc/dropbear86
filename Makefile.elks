@@ -58,6 +58,8 @@ dropbear86_version.h: FORCE
 	@echo '#define DROPBEAR86_VERSION "$(DB86_VERSION)"' > $@.tmp
 	@cmp -s $@.tmp $@ && rm -f $@.tmp || mv $@.tmp $@
 
+$(OBJDIR)/curve25519.o: CPPFLAGS += -DCURVE25519_PHASE_MARKS
+
 $(OBJDIR)/common-runopts.o: dropbear86_version.h
 $(OBJDIR)/common-runopts.o: CPPFLAGS += -include dropbear86_version.h
 
