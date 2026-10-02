@@ -11,6 +11,11 @@ Wall-clock time from `ssh user@host` to seeing the password prompt.
 | 2026-09-27 | ~2bee5b8  | 41 min  | -Os baseline, pre-mul_widen                      |
 | 2026-09-28 | 34b57a2   | 35 min  | -O2 + mul_widen + car25519 + M reduction cleanup |
 | 2026-10-01 | 7369018   | 8m30s   | Phase 2 asm. **Includes** typing password, login, `exit` -- not to-prompt; needs server `LoginGraceTime` > 2m |
+| 2026-10-01 | 66eca10   | ~3 min  | ~55 s binary load (ELKS relocations) + 124 s main() to password prompt. Double-scalar verify, first-guess key reuse, socket drain vs ktcp polling |
+
+Phase timing for 66eca10 (`DROPBEAR_PHASE_TIMING=1`, seconds since main()):
+seedrandom 3.7, X25519 keygen 4-35, server KEXINIT 38, KEXDH_REPLY 39,
+shared secret + exchange hash 73, Ed25519 verify 122, password prompt 124.
 
 ## mathtest (curve25519 scalarmult isolated)
 
