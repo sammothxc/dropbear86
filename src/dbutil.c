@@ -614,23 +614,101 @@ void setnonblocking(int fd) {
  * DROPBEAR_PHASE_TIMING set in the environment, prints the elapsed time
  * at each step to stderr.  Times count from the first call, right after
  * argument parsing, so program load time is not included. */
+static int phase_enabled = -1;
+
+static int phase_timing_enabled(void) {
+	if (phase_enabled < 0) {
+		phase_enabled = getenv("DROPBEAR_PHASE_TIMING") != NULL;
+	}
+	return phase_enabled;
+}
+
 void phase_mark(const char *what) {
-	static int enabled = -1;
+	static int started = 0;
 	static struct timeval t0;
 	struct timeval tv;
 	long cs;
 
-	if (enabled < 0) {
-		enabled = getenv("DROPBEAR_PHASE_TIMING") != NULL;
+	if (!started) {
+		started = 1;
 		gettimeofday(&t0, NULL);
 	}
-	if (!enabled) {
+	if (!phase_timing_enabled()) {
 		return;
 	}
 	gettimeofday(&tv, NULL);
 	cs = (long)(tv.tv_sec - t0.tv_sec) * 100
 		+ (long)(tv.tv_usec - t0.tv_usec) / 10000;
 	fprintf(stderr, "[%4ld.%02lds] %s\r\n", cs / 100, cs % 100, what);
+}
+
+/* Keystroke latency breakdown, also enabled by DROPBEAR_PHASE_TIMING.
+ * One keystroke at a time is followed through five points: read from
+ * the keyboard (KS_KEY), its packet written to the socket (KS_SENT), the
+ * next incoming packet starting to arrive (KS_ARRIVED), that packet
+ * decrypted (KS_DECRYPTED) and its data written to the terminal
+ * (KS_DRAWN).  Keys pressed while a sample is in flight are ignored, and
+ * a sample with no echo (e.g. a password) is dropped after 3 seconds.
+ * keystroke_report() prints the averages when the session ends; printing
+ * during the session would garble the screen. */
+static int ks_stage = -1;		/* -1: idle */
+static struct timeval ks_t[5];
+static long ks_sum_ms[4];
+static unsigned int ks_count;
+
+static long ks_ms_between(const struct timeval *a, const struct timeval *b) {
+	return (long)(b->tv_sec - a->tv_sec) * 1000
+		+ (long)(b->tv_usec - a->tv_usec) / 1000;
+}
+
+void keystroke_mark(int stage) {
+	struct timeval now;
+	int i;
+
+	if (!phase_timing_enabled()) {
+		return;
+	}
+	gettimeofday(&now, NULL);
+	if (stage == KS_KEY) {
+		if (ks_stage == -1 || ks_ms_between(&ks_t[0], &now) > 3000) {
+			ks_t[0] = now;
+			ks_stage = KS_KEY;
+		}
+		return;
+	}
+	if (ks_stage != stage - 1) {
+		return;
+	}
+	ks_t[stage] = now;
+	ks_stage = stage;
+	if (stage == KS_DRAWN) {
+		for (i = 0; i < 4; i++) {
+			ks_sum_ms[i] += ks_ms_between(&ks_t[i], &ks_t[i + 1]);
+		}
+		ks_count++;
+		ks_stage = -1;
+	}
+}
+
+void keystroke_report() {
+	static const char *const what[4] = {
+		"key read -> packet sent",
+		"sent -> echo starts arriving",
+		"arrival -> echo decrypted",
+		"decrypted -> drawn on screen",
+	};
+	long total = 0;
+	int i;
+
+	if (!phase_timing_enabled() || ks_count == 0) {
+		return;
+	}
+	fprintf(stderr, "\r\nKeystroke timing, average of %u keystrokes:\r\n", ks_count);
+	for (i = 0; i < 4; i++) {
+		fprintf(stderr, "  %-30s %5ld ms\r\n", what[i], ks_sum_ms[i] / (long)ks_count);
+		total += ks_sum_ms[i];
+	}
+	fprintf(stderr, "  %-30s %5ld ms\r\n", "total", total / (long)ks_count);
 }
 
 void disallow_core() {

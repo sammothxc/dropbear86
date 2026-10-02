@@ -519,6 +519,7 @@ static int writechannel(struct Channel* channel, int fd, circbuffer *cbuf,
 #else
 	ret = writechannel_fallback(channel, fd, cbuf, moredata, morelen);
 #endif
+	keystroke_mark(KS_DRAWN);
 
 	/* Window adjust handling */
 	if (channel->recvdonelen >= RECV_WINDOWEXTEND) {
@@ -736,6 +737,9 @@ static void send_msg_channel_data(struct Channel *channel, int isextended) {
 
 	/* read the data */
 	len = read(fd, buf_getwriteptr(ses.writepayload, maxlen), maxlen);
+	if (len > 0) {
+		keystroke_mark(KS_KEY);
+	}
 
 	if (len <= 0) {
 		if (len == 0 || errno != EINTR) {

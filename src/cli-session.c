@@ -377,6 +377,7 @@ static void cli_finished() {
 	TRACE(("cli_finished()"))
 
 	session_cleanup();
+	keystroke_report();
 	fprintf(stderr, "Connection to %s@%s:%s closed.\n", cli_opts.username,
 			cli_opts.remotehost, cli_opts.remoteport);
 	exit(cli_ses.retval);
@@ -462,6 +463,8 @@ void cli_dropbear_exit(int exitcode, const char* format, va_list param) {
 
 	/* Avoid printing onwards from terminal cruft */
 	fprintf(stderr, "\n");
+
+	keystroke_report();
 
 	dropbear_log(LOG_INFO, "%s", fullmsg);
 

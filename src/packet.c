@@ -99,6 +99,7 @@ void write_packet() {
 
 	packet_queue_consume(&ses.writequeue, written);
 	ses.writequeue_len -= written;
+	keystroke_mark(KS_SENT);
 
 	if (written == 0) {
 		ses.remoteclosed();
@@ -130,6 +131,7 @@ void write_packet() {
 	}
 
 	ses.writequeue_len -= written;
+	keystroke_mark(KS_SENT);
 
 	if (written == len) {
 		/* We've finished with the packet, free it */
@@ -230,6 +232,10 @@ void read_packet() {
 
 	TRACE2(("enter read_packet"))
 	blocksize = ses.keys->recv.algo_crypt->blocksize;
+	if (ses.readbuf == NULL) {
+		/* starting a new packet */
+		keystroke_mark(KS_ARRIVED);
+	}
 	
 	if (ses.readbuf == NULL || ses.readbuf->len < blocksize) {
 		int ret;
@@ -455,6 +461,7 @@ void decrypt_packet() {
 	ses.readbuf = NULL;
 
 	ses.recvseq++;
+	keystroke_mark(KS_DECRYPTED);
 
 	TRACE2(("leave decrypt_packet"))
 }
