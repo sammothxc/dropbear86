@@ -649,8 +649,10 @@ void phase_mark(const char *what) {
  * decrypted (KS_DECRYPTED) and its data written to the terminal
  * (KS_DRAWN).  Keys pressed while a sample is in flight are ignored, and
  * a sample with no echo (e.g. a password) is dropped after 3 seconds.
- * keystroke_report() prints the averages when the session ends; printing
- * during the session would garble the screen. */
+ * Each completed sample is printed right away, after its last timestamp,
+ * as "[ks a+b+c+d = total (avg N)]".  It interleaves with the remote
+ * output, but keystroke_report() at exit never appears on ELKS (see the
+ * commit adding it), so this is the reliable way to see the numbers. */
 static int ks_stage = -1;		/* -1: idle */
 static struct timeval ks_t[5];
 static long ks_sum_ms[4];
@@ -682,11 +684,23 @@ void keystroke_mark(int stage) {
 	ks_t[stage] = now;
 	ks_stage = stage;
 	if (stage == KS_DRAWN) {
+		long ms[4], total = 0, sum = 0;
+
 		for (i = 0; i < 4; i++) {
-			ks_sum_ms[i] += ks_ms_between(&ks_t[i], &ks_t[i + 1]);
+			ms[i] = ks_ms_between(&ks_t[i], &ks_t[i + 1]);
+			ks_sum_ms[i] += ms[i];
+			total += ms[i];
+			sum += ks_sum_ms[i];
 		}
 		ks_count++;
 		ks_stage = -1;
+		if (ks_count == 1) {
+			fprintf(stderr, "\r\n[keystroke ms: key->sent + sent->echo + "
+				"echo->decrypted + decrypted->drawn = total (avg)]\r\n");
+		}
+		fprintf(stderr, "[ks %ld+%ld+%ld+%ld = %ld (avg %ld)]\r\n",
+			ms[0], ms[1], ms[2], ms[3], total, sum / (long)ks_count);
+		fflush(stderr);
 	}
 }
 
