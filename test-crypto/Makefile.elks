@@ -18,7 +18,8 @@ BINARY = mathtest
 
 # Match the main Makefile.elks so timings are a valid proxy for ssh.
 CFLAGS = -mcmodel=medium -melks-libc -mtune=i8086 -Wall -O2 \
-	-fomit-frame-pointer -fno-strict-overflow -Wno-pointer-sign
+	-fomit-frame-pointer -fno-strict-overflow -Wno-pointer-sign \
+	-MMD -MP
 # Dropbear's real headers and options for the shipped code ...
 DB_CPPFLAGS = -I $(DBDIR) -I $(DBDIR)/src -I $(DBDIR)/libtomcrypt/src/headers \
 	-DLOCALOPTIONS_H_EXISTS -DDROPBEAR_CLIENT -DDROPBEAR_ELKS_WEAK_RANDOM=1
@@ -86,3 +87,5 @@ $(OBJDIR)/ltc/%.o: $(DBDIR)/libtomcrypt/src/%.c $(GUARD) $(DBDIR)/localoptions.h
 
 clean:
 	rm -rf $(OBJDIR) $(BINARY)
+
+-include $(OBJS:.o=.d)

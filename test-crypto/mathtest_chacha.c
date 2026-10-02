@@ -115,6 +115,39 @@ int test_chachapoly(void)
 		fails++;
 	}
 
+	/* Same known answer with the keystream precomputed (as the session
+	 * loop does while idle), and with a precompute for the wrong sequence
+	 * number, which must be ignored. */
+	while (dropbear_chachapoly_precompute(&st, CP_SEQ)) {
+	}
+	memcpy(ct, cp_plain, CP_LEN);
+	if (m->aead_crypt(CP_SEQ, ct, ct, CP_LEN, 16, &st, LTC_ENCRYPT) != CRYPT_OK
+			|| memcmp(ct, cp_cipher, CP_LEN + 16) != 0) {
+		printf("chachapoly precomputed encrypt: FAIL\n");
+		fails++;
+	}
+	while (dropbear_chachapoly_precompute(&st, CP_SEQ)) {
+	}
+	if (m->aead_getlength(CP_SEQ, cp_cipher, &plen, 8, &st) != CRYPT_OK
+			|| plen != CP_LEN - 4) {
+		printf("chachapoly precomputed length: FAIL\n");
+		fails++;
+	}
+	memcpy(pt, cp_cipher, CP_LEN + 16);
+	if (m->aead_crypt(CP_SEQ, pt, pt, CP_LEN, 16, &st, LTC_DECRYPT) != CRYPT_OK
+			|| memcmp(pt, cp_plain, CP_LEN) != 0) {
+		printf("chachapoly precomputed decrypt: FAIL\n");
+		fails++;
+	}
+	while (dropbear_chachapoly_precompute(&st, CP_SEQ + 1)) {
+	}
+	memcpy(ct, cp_plain, CP_LEN);
+	if (m->aead_crypt(CP_SEQ, ct, ct, CP_LEN, 16, &st, LTC_ENCRYPT) != CRYPT_OK
+			|| memcmp(ct, cp_cipher, CP_LEN + 16) != 0) {
+		printf("chachapoly wrong-seq precompute ignored: FAIL\n");
+		fails++;
+	}
+
 	/* One keystroke round: encrypt ours, then length + decrypt the echo. */
 	gettimeofday(&t0, NULL);
 	for (i = 0; i < ROUNDS; i++) {
@@ -134,6 +167,25 @@ int test_chachapoly(void)
 		m->aead_crypt(CP_SEQ + i, ct, ct, CP_LEN, 16, &st, LTC_ENCRYPT);
 	}
 	report("  encrypt one packet", cs_since(&t0), ROUNDS);
+
+	/* The same round once the idle-time precompute has run (it isn't
+	 * timed): what a keystroke costs in ssh when you type at a pause. */
+	cs = 0;
+	for (i = 0; i < ROUNDS; i++) {
+		while (dropbear_chachapoly_precompute(&st, CP_SEQ + i)) {
+		}
+		gettimeofday(&t0, NULL);
+		memcpy(ct, cp_plain, CP_LEN);
+		m->aead_crypt(CP_SEQ + i, ct, ct, CP_LEN, 16, &st, LTC_ENCRYPT);
+		cs += cs_since(&t0);
+		while (dropbear_chachapoly_precompute(&st, CP_SEQ + i)) {
+		}
+		gettimeofday(&t0, NULL);
+		m->aead_getlength(CP_SEQ + i, ct, &plen, 8, &st);
+		m->aead_crypt(CP_SEQ + i, ct, pt, CP_LEN, 16, &st, LTC_DECRYPT);
+		cs += cs_since(&t0);
+	}
+	report("per keystroke, keystream precomputed", cs, ROUNDS);
 
 	/* The two primitives on their own. */
 	memset(blk, 0, sizeof(blk));

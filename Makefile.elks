@@ -25,6 +25,12 @@ CPPFLAGS = -I. -I src -I libtomcrypt/src/headers -DLOCALOPTIONS_H_EXISTS -DDROPB
 # a future test shows -O2 broken on the Compaq, fall back to -Os.
 CFLAGS = -mcmodel=medium -melks-libc -mtune=i8086 -Wall -O2 \
 	-fomit-frame-pointer -fno-strict-overflow -Wno-pointer-sign
+# Track header dependencies: without this, changing a header such as
+# chachapoly.h (whose struct sits inside every session's key state) only
+# rebuilt the .c files touched, linking objects with different struct
+# layouts.  -MMD writes obj/*.d next to each object; it doesn't change the
+# generated code.
+DEPFLAGS = -MMD -MP
 
 DBCLIENT_SRCS = \
 	dbutil buffer dbhelpers signkey dbrandom queue atomicio compat fake-rfc2553 \
@@ -82,7 +88,7 @@ $(OBJDIR)/common-runopts.o: CPPFLAGS += -include dropbear86_version.h
 
 $(OBJDIR)/%.o: src/%.c default_options_guard.h localoptions.h
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(CPPFLAGS) -c $< -o $@
 
 $(OBJDIR)/%.o: src/%.S
 	@mkdir -p $(dir $@)
@@ -90,7 +96,9 @@ $(OBJDIR)/%.o: src/%.S
 
 $(OBJDIR)/ltc/%.o: libtomcrypt/src/%.c default_options_guard.h localoptions.h
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(CPPFLAGS) -c $< -o $@
 
 clean:
 	rm -rf obj-elks obj-elks-timing $(DBCLIENT) default_options_guard.h dropbear86_version.h
+
+-include $(DBCLIENT_OBJS:.o=.d) $(LTC_OBJS:.o=.d)

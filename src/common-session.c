@@ -167,6 +167,7 @@ void session_loop(void(*loophandler)(void)) {
 	for(;;) {
 		const int writequeue_has_space = (ses.writequeue_len <= 2*TRANS_MAX_PAYLOAD_LEN);
 		int want_read = 0;
+		int idle_work;
 
 		timeout.tv_sec = select_timeout();
 		timeout.tv_usec = 0;
@@ -207,6 +208,13 @@ void session_loop(void(*loophandler)(void)) {
 		if (want_read && packet_prefetch_pending()) {
 			timeout.tv_sec = 0;
 		}
+		/* With precomputation to do, only poll; it runs below if nothing
+		 * turns out to be ready. */
+		idle_work = packet_idle_pending();
+		if (idle_work) {
+			timeout.tv_sec = 0;
+			timeout.tv_usec = 0;
+		}
 
 		/* Ordering is important, this test must occur after any other function
 		might have queued packets (such as connection handlers) */
@@ -231,6 +239,9 @@ void session_loop(void(*loophandler)(void)) {
 			 * We don't want to read/write FDs. */
 			DROPBEAR_FD_ZERO(&writefd);
 			DROPBEAR_FD_ZERO(&readfd);
+			if (val == 0 && idle_work && !packet_prefetch_pending()) {
+				packet_idle_work();
+			}
 		}
 		
 		/* We'll just empty out the pipe if required. We don't do

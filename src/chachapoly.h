@@ -40,7 +40,17 @@ typedef struct {
 	unsigned int len_seq;
 	int len_valid;
 	unsigned char len_plain[4];
+	/* Keystream for packet pre_seq computed ahead of time while idle,
+	 * see dropbear_chachapoly_precompute().  pre_have bits: 1 = Poly1305
+	 * key, 2 = length field, 4 = first 64 bytes of payload keystream. */
+	unsigned int pre_seq;
+	unsigned char pre_have;
+	unsigned char pre_polykey[32];
+	unsigned char pre_len[4];
+	unsigned char pre_payload[64];
 } dropbear_chachapoly_state;
+
+int dropbear_chachapoly_precompute(dropbear_chachapoly_state *state, unsigned int seq);
 
 extern const struct dropbear_cipher dropbear_chachapoly;
 extern const struct dropbear_cipher_mode dropbear_mode_chachapoly;

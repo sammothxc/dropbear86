@@ -36,6 +36,7 @@
 #include "channel.h"
 #include "netio.h"
 #include "runopts.h"
+#include "chachapoly.h"
 
 static int read_packet_init(void);
 static int sock_read(void *buf, unsigned int len);
@@ -222,6 +223,95 @@ static int sock_read(void *buf, unsigned int len) {
 		return n;
 	}
 	return read(ses.sock_in, buf, len);
+}
+
+/* Idle-time precomputation.
+ *
+ * On an 8088 the per-packet crypto that doesn't depend on the data -- the
+ * random padding (one SHA-256 in genrandom(), ~144 ms) and ChaCha20
+ * keystream for the next packet in each direction (3 blocks each, ~27 ms
+ * per block) -- dominated keystroke latency.  session_loop() calls
+ * packet_idle_work() one unit at a time while nothing is ready to read or
+ * write, so by the time a key is pressed or an echo arrives that work is
+ * done.  Everything falls back to computing on the spot if it isn't. */
+
+/* Random bytes for packet padding, refilled while idle.  pad_pool_avail
+ * bytes are left at the end of pad_pool. */
+#define PAD_POOL_SIZE 32
+/* Enough for any padding with an 8-byte block: up to 11 + 8 bytes. */
+#define PAD_POOL_LOW 20
+static unsigned char pad_pool[PAD_POOL_SIZE];
+static unsigned int pad_pool_avail = 0;
+
+static void get_padding(unsigned char *buf, unsigned int len) {
+	if (len <= pad_pool_avail) {
+		unsigned char *src = pad_pool + PAD_POOL_SIZE - pad_pool_avail;
+		memcpy(buf, src, len);
+		m_burn(src, len);
+		pad_pool_avail -= len;
+	} else {
+		genrandom(buf, len);
+	}
+}
+
+#if DROPBEAR_CHACHA20POLY1305
+static dropbear_chachapoly_state *chachapoly_state(struct key_context_directional *dir) {
+	if (dir->crypt_mode == &dropbear_mode_chachapoly) {
+		return &dir->cipher_state.chachapoly;
+	}
+	return NULL;
+}
+#endif
+
+int packet_idle_pending() {
+#if DROPBEAR_CHACHA20POLY1305
+	dropbear_chachapoly_state *st;
+#endif
+
+	if (!ses.keys || !ses.dataallowed) {
+		return 0;
+	}
+	if (pad_pool_avail < PAD_POOL_LOW) {
+		return 1;
+	}
+#if DROPBEAR_CHACHA20POLY1305
+	st = chachapoly_state(&ses.keys->trans);
+	if (st && (st->pre_seq != ses.transseq || st->pre_have != 7)) {
+		return 1;
+	}
+	st = chachapoly_state(&ses.keys->recv);
+	if (st && (st->pre_seq != ses.recvseq || st->pre_have != 7)) {
+		return 1;
+	}
+#endif
+	return 0;
+}
+
+/* Do one unit of idle work: a padding refill or one ChaCha20 block.
+ * Sending (padding, then outgoing keystream) comes first. */
+void packet_idle_work() {
+#if DROPBEAR_CHACHA20POLY1305
+	dropbear_chachapoly_state *st;
+#endif
+
+	if (!ses.keys || !ses.dataallowed) {
+		return;
+	}
+	if (pad_pool_avail < PAD_POOL_LOW) {
+		genrandom(pad_pool, PAD_POOL_SIZE);
+		pad_pool_avail = PAD_POOL_SIZE;
+		return;
+	}
+#if DROPBEAR_CHACHA20POLY1305
+	st = chachapoly_state(&ses.keys->trans);
+	if (st && dropbear_chachapoly_precompute(st, ses.transseq)) {
+		return;
+	}
+	st = chachapoly_state(&ses.keys->recv);
+	if (st) {
+		dropbear_chachapoly_precompute(st, ses.recvseq);
+	}
+#endif
 }
 
 void read_packet() {
@@ -691,7 +781,7 @@ void encrypt_packet() {
 	/* actual padding */
 	buf_setpos(writebuf, writebuf->len);
 	buf_incrlen(writebuf, padlen);
-	genrandom(buf_getptr(writebuf, padlen), padlen);
+	get_padding(buf_getptr(writebuf, padlen), padlen);
 
 #if DROPBEAR_AEAD_MODE
 	if (ses.keys->trans.crypt_mode->aead_crypt) {
