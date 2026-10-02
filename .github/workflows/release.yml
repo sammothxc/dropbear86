@@ -1,0 +1,65 @@
+name: Release
+
+# Pushing a v* tag builds ssh from that tag and creates a draft GitHub
+# release with the binary and checksums attached.  The release notes come
+# from .github/release-notes/<tag>.md, which must exist in the tagged commit.
+# Nothing is published until the draft is reviewed and published by hand.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install ia16-elf toolchain and ELKS libc
+        run: |
+          sudo add-apt-repository -y ppa:tkchia/build-ia16
+          sudo apt-get update
+          sudo apt-get install -y gcc-ia16-elf elks-libc-gcc-ia16-elf libssl-dev
+          ia16-elf-gcc --version | head -1
+
+      - name: Check release notes exist
+        run: test -f ".github/release-notes/${GITHUB_REF_NAME}.md"
+
+      - name: Generated asm matches its generator
+        run: python3 src/fe25519_ia16.py | diff -u src/fe25519_ia16.S -
+
+      - name: Host crypto tests (X25519, Ed25519)
+        run: make -C test-crypto test
+
+      - name: Build ssh
+        run: make -f Makefile.elks
+
+      - name: Check ssh -V will report the tag
+        run: |
+          cat dropbear86_version.h
+          grep -q "\"${GITHUB_REF_NAME}\"" dropbear86_version.h
+
+      - name: Package
+        run: |
+          mkdir dist
+          cp ssh dist/ssh
+          cd dist
+          md5sum ssh > MD5SUMS
+          sha256sum ssh > SHA256SUMS
+          cat MD5SUMS SHA256SUMS
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          case "$GITHUB_REF_NAME" in v0.*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/ssh dist/MD5SUMS dist/SHA256SUMS \
+            --draft $prerelease \
+            --title "dropbear86 $GITHUB_REF_NAME" \
+            --notes-file ".github/release-notes/${GITHUB_REF_NAME}.md"

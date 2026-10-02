@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history and tags, so `git describe` (used for `ssh -V`)
+          # sees the release tags.
+          fetch-depth: 0
+
+      - name: Install ia16-elf toolchain and ELKS libc
+        run: |
+          sudo add-apt-repository -y ppa:tkchia/build-ia16
+          sudo apt-get update
+          sudo apt-get install -y gcc-ia16-elf elks-libc-gcc-ia16-elf libssl-dev
+          ia16-elf-gcc --version | head -1
+
+      - name: Generated asm matches its generator
+        run: python3 src/fe25519_ia16.py | diff -u src/fe25519_ia16.S -
+
+      - name: Host crypto tests (X25519, Ed25519)
+        run: make -C test-crypto test
+
+      - name: Build ssh
+        run: make -f Makefile.elks
+
+      - name: Build mathtest
+        run: make -C test-crypto -f Makefile.elks
+
+      - name: Show build identity
+        run: |
+          cat dropbear86_version.h
+          md5sum ssh test-crypto/mathtest
+          sha256sum ssh test-crypto/mathtest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dropbear86-elks
+          path: |
+            ssh
+            test-crypto/mathtest
