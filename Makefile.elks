@@ -19,12 +19,13 @@ DBCLIENT_SRCS = \
 	common-algo common-kex common-channel common-chansession termcodes \
 	loginrec listener process-packet common-runopts circbuffer list netio \
 	chachapoly kex-x25519 cli-main cli-auth cli-authpasswd cli-authpubkey \
-	cli-kex cli-session cli-runopts cli-chansession cli-channel cli-authinteract
+	cli-kex cli-session cli-runopts cli-chansession cli-channel cli-authinteract \
+	poly1305_16
 
 LTC_SRCS = \
 	hashes/sha2/sha256 hashes/sha2/sha512 hashes/helper/hash_memory \
 	mac/hmac/hmac_init mac/hmac/hmac_process mac/hmac/hmac_done \
-	mac/poly1305/poly1305 misc/base64/base64_encode misc/base64/base64_decode \
+	misc/base64/base64_encode misc/base64/base64_decode \
 	misc/crypt/crypt_argchk misc/crypt/crypt_find_hash \
 	misc/crypt/crypt_hash_descriptor misc/crypt/crypt_hash_is_valid \
 	misc/crypt/crypt_register_hash misc/zeromem \

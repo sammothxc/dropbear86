@@ -106,6 +106,21 @@ void pmac_shift_xor(pmac_state *pmac);
 #endif /* PMAC */
 
 #ifdef LTC_POLY1305
+/* dropbear86: on ia16, src/poly1305_16.c replaces mac/poly1305/poly1305.c
+ * with 13-bit limbs in 16-bit words (no 64-bit multiplies). */
+#if defined(__ia16__) && !defined(LTC_POLY1305_16BIT)
+#define LTC_POLY1305_16BIT
+#endif
+#ifdef LTC_POLY1305_16BIT
+typedef struct {
+   unsigned short r[10];
+   unsigned short h[10];
+   unsigned short pad[8];
+   unsigned long leftover;
+   unsigned char buffer[16];
+   int final;
+} poly1305_state;
+#else
 typedef struct {
    ulong32 r[5];
    ulong32 h[5];
@@ -114,6 +129,7 @@ typedef struct {
    unsigned char buffer[16];
    int final;
 } poly1305_state;
+#endif
 
 int poly1305_init(poly1305_state *st, const unsigned char *key, unsigned long keylen);
 int poly1305_process(poly1305_state *st, const unsigned char *in, unsigned long inlen);

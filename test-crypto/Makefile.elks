@@ -28,9 +28,10 @@ CURVE_CPPFLAGS = $(DB_CPPFLAGS) -DCURVE25519_PROFILE
 LTC_SRCS = hashes/sha2/sha512 misc/crypt/crypt_argchk \
 	stream/chacha/chacha_setup stream/chacha/chacha_ivctr64 \
 	stream/chacha/chacha_crypt stream/chacha/chacha_keystream \
-	mac/poly1305/poly1305 misc/zeromem
+	misc/zeromem
 
 OBJS = $(OBJDIR)/mathtest.o $(OBJDIR)/mathtest_chacha.o $(OBJDIR)/chachapoly.o \
+	$(OBJDIR)/poly1305_16.o \
 	$(OBJDIR)/curve25519.o $(OBJDIR)/fe25519_ia16.o \
 	$(addprefix $(OBJDIR)/ltc/,$(addsuffix .o,$(LTC_SRCS)))
 
@@ -56,6 +57,10 @@ $(OBJDIR)/mathtest_chacha.o: mathtest_chacha.c chachapoly_vectors.h $(GUARD) $(D
 	$(CC) $(CFLAGS) $(DB_CPPFLAGS) -c $< -o $@
 
 $(OBJDIR)/chachapoly.o: $(DBDIR)/src/chachapoly.c $(GUARD) $(DBDIR)/localoptions.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(DB_CPPFLAGS) -c $< -o $@
+
+$(OBJDIR)/poly1305_16.o: $(DBDIR)/src/poly1305_16.c $(GUARD) $(DBDIR)/localoptions.h
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(DB_CPPFLAGS) -c $< -o $@
 
