@@ -1,5 +1,7 @@
 # dropbear86
 
+[![CI](https://github.com/sammothxc/dropbear86/actions/workflows/ci.yml/badge.svg)](https://github.com/sammothxc/dropbear86/actions/workflows/ci.yml)
+
 An SSH-2 client for 8086 and other 16-bit x86 CPUs running [ELKS](https://github.com/ghaerr/elks). It is a fork of [Dropbear](https://github.com/mkj/dropbear), retargeted for `ia16-elf-gcc`, built with the ELKS libc, and audited for the 16-bit integer widths the SSH protocol demands.
 
 To the extent I've been able to check, this is the first SSH client for ELKS on 8086.
