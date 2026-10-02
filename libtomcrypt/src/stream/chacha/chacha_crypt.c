@@ -22,10 +22,21 @@
   x[a] += x[b]; x[d] = ROL(x[d] ^ x[a],  8); \
   x[c] += x[d]; x[b] = ROL(x[b] ^ x[c],  7);
 
+#ifdef __ia16__
+/* dropbear86: 8086 assembly for the 20-round block, src/chacha_ia16.S. */
+void chacha_block_ia16(unsigned char *output, const ulong32 *input);
+#endif
+
 static void _chacha_block(unsigned char *output, const ulong32 *input, int rounds)
 {
    ulong32 x[16];
    int i;
+#ifdef __ia16__
+   if (rounds == 20) {
+      chacha_block_ia16(output, input);
+      return;
+   }
+#endif
    XMEMCPY(x, input, sizeof(x));
    for (i = rounds; i > 0; i -= 2) {
       QUARTERROUND(0, 4, 8,12)

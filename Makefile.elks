@@ -32,9 +32,10 @@ LTC_SRCS = \
 	stream/chacha/chacha_setup stream/chacha/chacha_ivctr64 \
 	stream/chacha/chacha_crypt stream/chacha/chacha_keystream
 
-# Hand-written 8086 field arithmetic for curve25519.c (generated from
-# src/fe25519_ia16.py; the .S is committed so no Python is needed here).
-ASM_SRCS = fe25519_ia16
+# Hand-written 8086 assembly: field arithmetic for curve25519.c and the
+# ChaCha20 block for libtomcrypt (generated from src/*_ia16.py; the .S
+# files are committed so no Python is needed here).
+ASM_SRCS = fe25519_ia16 chacha_ia16
 
 DBCLIENT_OBJS = $(addprefix $(OBJDIR)/,$(addsuffix .o,$(DBCLIENT_SRCS) $(ASM_SRCS)))
 LTC_OBJS = $(addprefix $(OBJDIR)/ltc/,$(addsuffix .o,$(LTC_SRCS)))
