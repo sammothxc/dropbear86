@@ -34,6 +34,7 @@ jobs:
         run: |
           python3 src/fe25519_ia16.py | diff -u src/fe25519_ia16.S -
           python3 src/chacha_ia16.py | diff -u src/chacha_ia16.S -
+          python3 src/poly1305_ia16.py | diff -u src/poly1305_ia16.S -
 
       - name: Host crypto tests (X25519, Ed25519)
         run: make -C test-crypto test

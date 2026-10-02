@@ -9,7 +9,9 @@
  * 16x16->32: one MUL instruction on the 8086.
  *
  * Same algorithm and limb layout as poly1305-donna's 16-bit variant by
- * Andrew Moon (public domain / MIT).  Selected by LTC_POLY1305_16BIT,
+ * Andrew Moon (public domain / MIT).  On ia16 the multiply-and-reduce step
+ * (p16_mulmod, 100 products per block) is 8086 assembly in
+ * src/poly1305_ia16.S, which must match the C version bit for bit.  Selected by LTC_POLY1305_16BIT,
  * which tomcrypt_mac.h defines for __ia16__ along with the matching
  * poly1305_state layout; Makefile.elks builds this file instead of
  * libtomcrypt's mac/poly1305/poly1305.c.
@@ -62,6 +64,10 @@ int poly1305_init(poly1305_state *st, const unsigned char *key, unsigned long ke
 	st->r[7] = ((t5 >> 11) | (t6 << 5)) & 0x1f81;
 	st->r[8] = ((t6 >> 8) | (t7 << 8)) & 0x1fff;
 	st->r[9] = (t7 >> 5) & 0x007f;
+	/* 2^130 == 5 mod p, so products wrapping past limb 9 use 5*r */
+	for (i = 0; i < 10; i++) {
+		st->r[10 + i] = (uint16_t)(st->r[i] * 5);
+	}
 
 	/* s = key[16..31], added at the end */
 	for (i = 0; i < 8; i++) {
@@ -75,19 +81,46 @@ int poly1305_init(poly1305_state *st, const unsigned char *key, unsigned long ke
 	return CRYPT_OK;
 }
 
-static void p16_blocks(poly1305_state *st, const unsigned char *m, unsigned long bytes)
+#ifdef __ia16__
+void poly1305_mulmod_ia16(uint16_t h[10], const uint16_t r[20]);
+#define p16_mulmod poly1305_mulmod_ia16
+#else
+/* h = h * r, partially reduced mod 2^130 - 5.  r[10..19] holds 5*r. */
+static void p16_mulmod(uint16_t h[10], const uint16_t r[20])
 {
-	const uint16_t hibit = st->final ? 0 : (1 << 11);	/* 2^128 */
-	uint16_t t0, t1, t2, t3, t4, t5, t6, t7;
-	uint16_t r5[10];
 	uint32_t d[10];
 	uint32_t c;
 	int i, j;
 
-	/* 2^130 == 5 mod p, so products wrapping past limb 9 use 5*r */
-	for (i = 0; i < 10; i++) {
-		r5[i] = (uint16_t)(st->r[i] * 5);
+	for (i = 0, c = 0; i < 10; i++) {
+		d[i] = c;
+		for (j = 0; j < 10; j++) {
+			d[i] += (uint32_t)h[j] * ((j <= i) ? r[i - j] : r[10 + i + 10 - j]);
+			/* carry part-way through so the sum can't overflow 32 bits */
+			if (j == 4) {
+				c = d[i] >> 13;
+				d[i] &= 0x1fff;
+			}
+		}
+		c += d[i] >> 13;
+		d[i] &= 0x1fff;
 	}
+	c = (c << 2) + c;	/* c *= 5 */
+	c += d[0];
+	d[0] = c & 0x1fff;
+	c >>= 13;
+	d[1] += c;
+
+	for (i = 0; i < 10; i++) {
+		h[i] = (uint16_t)d[i];
+	}
+}
+#endif
+
+static void p16_blocks(poly1305_state *st, const unsigned char *m, unsigned long bytes)
+{
+	const uint16_t hibit = st->final ? 0 : (1 << 11);	/* 2^128 */
+	uint16_t t0, t1, t2, t3, t4, t5, t6, t7;
 
 	while (bytes >= P16_BLOCK) {
 		t0 = p16_load(&m[0]);
@@ -111,29 +144,7 @@ static void p16_blocks(poly1305_state *st, const unsigned char *m, unsigned long
 		st->h[8] += ((t6 >> 8) | (t7 << 8)) & 0x1fff;
 		st->h[9] += (t7 >> 5) | hibit;
 
-		/* h *= r, partially reduced mod 2^130 - 5 */
-		for (i = 0, c = 0; i < 10; i++) {
-			d[i] = c;
-			for (j = 0; j < 10; j++) {
-				d[i] += (uint32_t)st->h[j] * ((j <= i) ? st->r[i - j] : r5[i + 10 - j]);
-				/* carry part-way through so the sum can't overflow 32 bits */
-				if (j == 4) {
-					c = d[i] >> 13;
-					d[i] &= 0x1fff;
-				}
-			}
-			c += d[i] >> 13;
-			d[i] &= 0x1fff;
-		}
-		c = (c << 2) + c;	/* c *= 5 */
-		c += d[0];
-		d[0] = c & 0x1fff;
-		c >>= 13;
-		d[1] += c;
-
-		for (i = 0; i < 10; i++) {
-			st->h[i] = (uint16_t)d[i];
-		}
+		p16_mulmod(st->h, st->r);
 
 		m += P16_BLOCK;
 		bytes -= P16_BLOCK;

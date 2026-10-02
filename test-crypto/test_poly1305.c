@@ -13,7 +13,7 @@
 #define CRYPT_OK 0
 #define LTC_ARGCHK(x) do { if (!(x)) { printf("ARGCHK failed: %s\n", #x); return 1; } } while (0)
 typedef struct {
-	unsigned short r[10];
+	unsigned short r[20];
 	unsigned short h[10];
 	unsigned short pad[8];
 	unsigned long leftover;

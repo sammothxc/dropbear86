@@ -31,7 +31,7 @@ LTC_SRCS = hashes/sha2/sha512 misc/crypt/crypt_argchk \
 	misc/zeromem
 
 OBJS = $(OBJDIR)/mathtest.o $(OBJDIR)/mathtest_chacha.o $(OBJDIR)/chachapoly.o \
-	$(OBJDIR)/poly1305_16.o $(OBJDIR)/chacha_ia16.o \
+	$(OBJDIR)/poly1305_16.o $(OBJDIR)/chacha_ia16.o $(OBJDIR)/poly1305_ia16.o \
 	$(OBJDIR)/curve25519.o $(OBJDIR)/fe25519_ia16.o \
 	$(addprefix $(OBJDIR)/ltc/,$(addsuffix .o,$(LTC_SRCS)))
 
@@ -67,6 +67,10 @@ $(OBJDIR)/poly1305_16.o: $(DBDIR)/src/poly1305_16.c $(GUARD) $(DBDIR)/localoptio
 $(OBJDIR)/curve25519.o: $(DBDIR)/src/curve25519.c $(GUARD) $(DBDIR)/localoptions.h
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(CURVE_CPPFLAGS) -c $< -o $@
+
+$(OBJDIR)/poly1305_ia16.o: $(DBDIR)/src/poly1305_ia16.S
+	@mkdir -p $(dir $@)
+	$(CC) -mcmodel=medium -melks-libc -c $< -o $@
 
 $(OBJDIR)/chacha_ia16.o: $(DBDIR)/src/chacha_ia16.S
 	@mkdir -p $(dir $@)

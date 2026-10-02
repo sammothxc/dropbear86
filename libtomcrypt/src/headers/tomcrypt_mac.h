@@ -113,7 +113,7 @@ void pmac_shift_xor(pmac_state *pmac);
 #endif
 #ifdef LTC_POLY1305_16BIT
 typedef struct {
-   unsigned short r[10];
+   unsigned short r[20];      /* r[0..9] = r, r[10..19] = 5*r */
    unsigned short h[10];
    unsigned short pad[8];
    unsigned long leftover;
