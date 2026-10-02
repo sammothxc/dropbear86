@@ -34,6 +34,12 @@
 typedef struct {
 	chacha_state chacha;
 	chacha_state header;
+	/* Length field decrypted by getlength, reused once by the following
+	 * decrypt of the same packet (saves a ChaCha20 block per received
+	 * packet; ~26 ms on an 8088). */
+	unsigned int len_seq;
+	int len_valid;
+	unsigned char len_plain[4];
 } dropbear_chachapoly_state;
 
 extern const struct dropbear_cipher dropbear_chachapoly;

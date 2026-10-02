@@ -62,6 +62,59 @@ static void _chacha_block(unsigned char *output, const ulong32 *input, int round
    @param out     [out] The ciphertext (or plaintext), length inlen
    @return CRYPT_OK if successful
 */
+#ifdef __ia16__
+/* dropbear86: same as the generic version below, but with 16-bit loop
+ * counters and a memcpy for the leftover keystream.  The generic one
+ * counts with unsigned long (32 bits on ia16) and decrements the 32-bit
+ * st->ksleft once per byte, which cost ~10 ms per block on an 8088 --
+ * a third of the block itself.  Every loop here is bounded by the
+ * 64-byte block, so 16 bits are enough. */
+int chacha_crypt(chacha_state *st, const unsigned char *in, unsigned long inlen, unsigned char *out)
+{
+   unsigned char buf[64];
+   unsigned int i, n, left;
+
+   if (inlen == 0) return CRYPT_OK; /* nothing to do */
+
+   LTC_ARGCHK(st        != NULL);
+   LTC_ARGCHK(in        != NULL);
+   LTC_ARGCHK(out       != NULL);
+   LTC_ARGCHK(st->ivlen != 0);
+
+   if (st->ksleft > 0) {
+      left = (unsigned int)st->ksleft;          /* at most 64 */
+      n = inlen < left ? (unsigned int)inlen : left;
+      for (i = 0; i < n; ++i) out[i] = in[i] ^ st->kstream[64 - left + i];
+      st->ksleft = left - n;
+      inlen -= n;
+      if (inlen == 0) return CRYPT_OK;
+      out += n;
+      in  += n;
+   }
+   for (;;) {
+     _chacha_block(buf, st->input, st->rounds);
+     if (st->ivlen == 8) {
+       /* IV-64bit, increment 64bit counter */
+       if (0 == ++st->input[12] && 0 == ++st->input[13]) return CRYPT_OVERFLOW;
+     }
+     else {
+       /* IV-96bit, increment 32bit counter */
+       if (0 == ++st->input[12]) return CRYPT_OVERFLOW;
+     }
+     if (inlen <= 64) {
+       n = (unsigned int)inlen;
+       for (i = 0; i < n; ++i) out[i] = in[i] ^ buf[i];
+       st->ksleft = 64 - n;
+       XMEMCPY(st->kstream + n, buf + n, 64 - n);
+       return CRYPT_OK;
+     }
+     for (i = 0; i < 64; ++i) out[i] = in[i] ^ buf[i];
+     inlen -= 64;
+     out += 64;
+     in  += 64;
+   }
+}
+#else
 int chacha_crypt(chacha_state *st, const unsigned char *in, unsigned long inlen, unsigned char *out)
 {
    unsigned char buf[64];
@@ -104,6 +157,7 @@ int chacha_crypt(chacha_state *st, const unsigned char *in, unsigned long inlen,
      in  += 64;
    }
 }
+#endif /* __ia16__ */
 
 #endif
 

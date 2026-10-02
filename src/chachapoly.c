@@ -63,6 +63,7 @@ static int dropbear_chachapoly_start(int UNUSED(cipher), const unsigned char* UN
 				CHACHA20_KEY_LEN, 20) != CRYPT_OK)) {
 		return err;
 	}
+	state->len_valid = 0;
 
 	TRACE2(("leave dropbear_chachapoly_start"))
 	return CRYPT_OK;
@@ -93,14 +94,21 @@ static int dropbear_chachapoly_crypt(unsigned int seq,
 		poly1305_process(&poly, in, len);
 		poly1305_done(&poly, tag, &taglen);
 		if (constant_time_memcmp(in + len, tag, taglen) != 0) {
+			state->len_valid = 0;
 			return CRYPT_ERROR;
 		}
 	}
 
-	chacha_ivctr64(&state->header, seqbuf, sizeof(seqbuf), 0);
-	if ((err = chacha_crypt(&state->header, in, 4, out)) != CRYPT_OK) {
-		return err;
+	if (direction == LTC_DECRYPT && state->len_valid && state->len_seq == seq) {
+		/* already decrypted by dropbear_chachapoly_getlength() */
+		memcpy(out, state->len_plain, 4);
+	} else {
+		chacha_ivctr64(&state->header, seqbuf, sizeof(seqbuf), 0);
+		if ((err = chacha_crypt(&state->header, in, 4, out)) != CRYPT_OK) {
+			return err;
+		}
 	}
+	state->len_valid = 0;
 
 	chacha_ivctr64(&state->chacha, seqbuf, sizeof(seqbuf), 1);
 	if ((err = chacha_crypt(&state->chacha, in + 4, len - 4, out + 4)) != CRYPT_OK) {
@@ -135,6 +143,9 @@ static int dropbear_chachapoly_getlength(unsigned int seq,
 	}
 
 	LOAD32H(*outlen, buf);
+	memcpy(state->len_plain, buf, sizeof(buf));
+	state->len_seq = seq;
+	state->len_valid = 1;
 
 	TRACE2(("leave dropbear_chachapoly_getlength"))
 	return CRYPT_OK;

@@ -22,6 +22,10 @@
 
 #include "chachapoly_vectors.h"
 
+#ifdef __ia16__
+void chacha_block_ia16(unsigned char *output, const ulong32 *input);
+#endif
+
 #define ROUNDS 10       /* timed keystroke rounds */
 #define OPS 20          /* timed iterations for the per-primitive figures */
 
@@ -138,6 +142,16 @@ int test_chachapoly(void)
 		chacha_crypt(&st.chacha, blk, sizeof(blk), blk);
 	}
 	report("  ChaCha20, one 64-byte block", cs_since(&t0), OPS);
+
+#ifdef __ia16__
+	/* The asm block alone, without chacha_crypt()'s C wrapper (byte-wise
+	 * XOR, keystream copy, counter update). */
+	gettimeofday(&t0, NULL);
+	for (i = 0; i < OPS; i++) {
+		chacha_block_ia16(blk, st.chacha.input);
+	}
+	report("    of which the asm block itself", cs_since(&t0), OPS);
+#endif
 
 	gettimeofday(&t0, NULL);
 	for (i = 0; i < OPS; i++) {
