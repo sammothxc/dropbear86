@@ -43,8 +43,10 @@ A keystroke round is what the client does per typed character: encrypt the 20-by
 |------|--------|---------------|--------------------|----------------|--------------|-------|
 | 2026-10-02 | 00448f1 | 562 ms | 250 ms | 56 ms | 84 ms | libtomcrypt C (Poly1305 via 64-bit libgcc multiplies) |
 | 2026-10-02 | 886e5de | 504 ms | 221 ms | 57 ms | 54 ms | Poly1305 with 16-bit limbs (C) |
+| 2026-10-02 | 9aee69c | 354 ms | 161 ms | 36 ms | 54 ms | ChaCha20 block in 8086 asm (26 ms; ~10 ms was libtomcrypt's C wrapper) |
+| 2026-10-02 | a084bd0 | 254 ms | 123 ms | 30 ms | 23 ms | 16-bit ChaCha20 wrapper loops, length field decrypted once per received packet (6 blocks per keystroke, not 7), Poly1305 multiply in 8086 asm |
 
-Per keystroke there are 7 ChaCha20 blocks (3 to send, 4 to receive, including the Poly1305 key and length blocks) and 2 Poly1305 MACs; the per-primitive numbers add up to the measured round.
+Per keystroke there were 7 ChaCha20 blocks (3 to send, 4 to receive, including the Poly1305 key and length blocks; 6 since a084bd0, which decrypts each received length field once) and 2 Poly1305 MACs; the per-primitive numbers add up to within ~10% of the measured round.
 
 ## Roadmap targets (rough)
 
