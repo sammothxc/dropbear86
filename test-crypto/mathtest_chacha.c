@@ -162,6 +162,20 @@ int test_chachapoly(void)
 	}
 	report("  Poly1305 MAC of one packet", cs_since(&t0), OPS);
 
+	/* What genrandom() does for each packet's random padding: SHA-256
+	 * over its 32-byte pool and a 32-bit counter (one compression). */
+	gettimeofday(&t0, NULL);
+	for (i = 0; i < OPS; i++) {
+		hash_state hs;
+		uint32_t counter = (uint32_t)i;
+
+		sha256_init(&hs);
+		sha256_process(&hs, cp_key, 32);
+		sha256_process(&hs, (const unsigned char *)&counter, sizeof(counter));
+		sha256_done(&hs, blk);
+	}
+	report("  padding RNG (SHA-256), per packet", cs_since(&t0), OPS);
+
 	printf("chachapoly correctness: %s\n", fails ? "FAIL" : "PASS");
 	return fails ? 1 : 0;
 }

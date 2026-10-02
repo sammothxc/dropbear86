@@ -25,7 +25,7 @@ DB_CPPFLAGS = -I $(DBDIR) -I $(DBDIR)/src -I $(DBDIR)/libtomcrypt/src/headers \
 # ... plus stage marks inside Ed25519 verify (see PROFILE_MARK).
 CURVE_CPPFLAGS = $(DB_CPPFLAGS) -DCURVE25519_PROFILE
 
-LTC_SRCS = hashes/sha2/sha512 misc/crypt/crypt_argchk \
+LTC_SRCS = hashes/sha2/sha512 hashes/sha2/sha256 misc/crypt/crypt_argchk \
 	stream/chacha/chacha_setup stream/chacha/chacha_ivctr64 \
 	stream/chacha/chacha_crypt stream/chacha/chacha_keystream \
 	misc/zeromem
