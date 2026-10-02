@@ -86,11 +86,11 @@ void svr_auth_pubkey(int valid_user) {
 
 	unsigned char testkey; /* whether we're just checking if a key is usable */
 	char* sigalgo = NULL;
-	unsigned int sigalgolen;
+	uint32_t sigalgolen;
 	const char* keyalgo;
-	unsigned int keyalgolen;
+	uint32_t keyalgolen;
 	unsigned char* keyblob = NULL;
-	unsigned int keybloblen;
+	uint32_t keybloblen;
 	unsigned int sign_payload_length;
 	buffer * signbuf = NULL;
 	sign_key * key = NULL;
@@ -108,7 +108,12 @@ void svr_auth_pubkey(int valid_user) {
 
 	sigalgo = buf_getstring(ses.payload, &sigalgolen);
 	keybloblen = buf_getint(ses.payload);
-	keyblob = buf_getptr(ses.payload, keybloblen);
+	/* Check before buffer functions narrow it to unsigned int (16 bits
+	 * on ia16), where e.g. 0x10010 would pass as 0x10. */
+	if (keybloblen > MAX_PUBKEY_SIZE) {
+		dropbear_exit("Bad key blob length");
+	}
+	keyblob = buf_getptr(ses.payload, (unsigned int)keybloblen);
 
 	if (!valid_user) {
 		/* Return failure once we have read the contents of the packet

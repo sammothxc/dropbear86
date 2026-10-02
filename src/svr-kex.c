@@ -84,7 +84,9 @@ void recv_msg_kexdh_init() {
 
 	send_msg_kexdh_reply(&dh_e, q_c);
 
+#if DROPBEAR_NORMAL_DH
 	mp_clear(&dh_e);
+#endif
 	if (q_c) {
 		buf_free(q_c);
 		q_c = NULL;

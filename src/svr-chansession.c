@@ -366,7 +366,7 @@ static void cleanupchansess(const struct Channel *channel) {
 static void chansessionrequest(struct Channel *channel) {
 
 	char * type = NULL;
-	unsigned int typelen;
+	uint32_t typelen;
 	unsigned char wantreply;
 	int ret = 1;
 	struct ChanSess *chansess;
@@ -498,9 +498,9 @@ static void get_termmodes(const struct ChanSess *chansess) {
 
 	struct termios termio;
 	unsigned char opcode;
-	unsigned int value;
+	uint32_t value;
 	const struct TermCode * termcode;
-	unsigned int len;
+	uint32_t len;
 
 	TRACE(("enter get_termmodes"))
 
@@ -590,7 +590,7 @@ static void get_termmodes(const struct ChanSess *chansess) {
  * Returns DROPBEAR_SUCCESS or DROPBEAR_FAILURE */
 static int sessionpty(struct ChanSess * chansess) {
 
-	unsigned int termlen;
+	uint32_t termlen;
 	char namebuf[65];
 	struct passwd * pw = NULL;
 
@@ -668,7 +668,7 @@ static void make_connection_string(struct ChanSess *chansess) {
 static int sessioncommand(struct Channel *channel, struct ChanSess *chansess,
 		int iscmd, int issubsys) {
 
-	unsigned int cmdlen = 0;
+	uint32_t cmdlen = 0;
 	int ret;
 
 	TRACE(("enter sessioncommand %d", channel->index))

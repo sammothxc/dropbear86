@@ -37,7 +37,7 @@ static void send_msg_service_accept(const char *name, int len);
 void recv_msg_service_request() {
 
 	char * name;
-	unsigned int len;
+	uint32_t len;
 
 	TRACE(("enter recv_msg_service_request"))
 

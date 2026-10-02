@@ -73,7 +73,7 @@ void send_msg_userauth_banner(const buffer *banner) {
 void recv_msg_userauth_request() {
 
 	char *username = NULL, *servicename = NULL, *methodname = NULL;
-	unsigned int userlen, servicelen, methodlen;
+	uint32_t userlen, servicelen, methodlen;
 	int valid_user = 0;
 
 	TRACE(("enter recv_msg_userauth_request"))
@@ -419,7 +419,13 @@ void send_msg_userauth_failure(int partial, int incrfail) {
 		if (!fuzz.fuzzing)
 #endif
 		{
+#ifdef __ia16__
+			/* ELKS libc has no nanosleep(); the delay is under a second. */
+			usleep((unsigned long)delay.tv_sec * 1000000UL
+				+ (unsigned long)(delay.tv_nsec / 1000));
+#else
 			while (nanosleep(&delay, &delay) == -1 && errno == EINTR) { /* Go back to sleep */ }
+#endif
 		}
 
 		ses.authstate.failcount++;
@@ -504,11 +510,15 @@ void svr_switch_user(void) {
 	/* We can only change uid/gid as root ... */
 	if (getuid() == 0) {
 
-		if ((setgid(ses.authstate.pw_gid) < 0) ||
-			(initgroups(ses.authstate.pw_name, 
-						ses.authstate.pw_gid) < 0)) {
+		if (setgid(ses.authstate.pw_gid) < 0) {
 			dropbear_exit("Error changing user group");
 		}
+#ifndef __ia16__
+		/* ELKS has no supplementary groups. */
+		if (initgroups(ses.authstate.pw_name, ses.authstate.pw_gid) < 0) {
+			dropbear_exit("Error changing user group");
+		}
+#endif
 
 #if DROPBEAR_SVR_DROP_PRIVS
 		/* Retain utmp saved group so that wtmp/utmp can be written */

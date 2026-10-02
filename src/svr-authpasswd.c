@@ -53,7 +53,7 @@ void svr_auth_password(int valid_user) {
 	char * passwdcrypt = NULL; /* the crypt from /etc/passwd or /etc/shadow */
 	char * testcrypt = NULL; /* crypt generated from the user's password sent */
 	char * password = NULL;
-	unsigned int passwordlen;
+	uint32_t passwordlen;
 	unsigned int changepw;
 
 	/* check if client wants to change password */

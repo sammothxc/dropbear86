@@ -13,6 +13,8 @@ scp
 
 # ELKS build output
 ssh
+sshd
+obj-elks-svr/
 ssh.o2
 
 # Desktop test harness build output

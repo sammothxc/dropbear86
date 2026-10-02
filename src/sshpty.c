@@ -271,7 +271,10 @@ pty_make_controlling_tty(int *ttyfd, const char *tty_name)
 
 	/* Solaris has a problem with TIOCNOTTY for a bg process, so
 	 * we disable the signal which would STOP the process - matt */
+#ifdef SIGTTOU
+	/* ELKS has no job control and no SIGTTOU. */
 	signal(SIGTTOU, SIG_IGN);
+#endif
 
 	/* First disconnect from the old controlling tty. */
 #ifdef TIOCNOTTY

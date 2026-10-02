@@ -32,18 +32,22 @@ jobs:
       - name: Build ssh
         run: make -f Makefile.elks
 
+      - name: Build sshd (experimental)
+        run: make -f Makefile.elks sshd
+
       - name: Build mathtest
         run: make -C test-crypto -f Makefile.elks
 
       - name: Show build identity
         run: |
           cat dropbear86_version.h
-          md5sum ssh test-crypto/mathtest
-          sha256sum ssh test-crypto/mathtest
+          md5sum ssh sshd test-crypto/mathtest
+          sha256sum ssh sshd test-crypto/mathtest
 
       - uses: actions/upload-artifact@v7
         with:
           name: dropbear86-elks
           path: |
             ssh
+            sshd
             test-crypto/mathtest
