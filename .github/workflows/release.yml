@@ -57,8 +57,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Plain versions (v0.2.0) are full releases; a suffix such as
+          # v0.2.0-rc1 marks a pre-release.
           prerelease=""
-          case "$GITHUB_REF_NAME" in v0.*) prerelease="--prerelease" ;; esac
+          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
           gh release create "$GITHUB_REF_NAME" dist/ssh dist/MD5SUMS dist/SHA256SUMS \
             --draft $prerelease \
             --title "dropbear86 $GITHUB_REF_NAME" \
