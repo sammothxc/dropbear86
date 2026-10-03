@@ -166,8 +166,6 @@ static unsigned int prefetch_len = 0, prefetch_pos = 0;
 
 void packet_prefetch() {
 	int n;
-	fd_set fds;
-	struct timeval tv;
 
 	if (ses.sock_in == -1 || !ses.remoteident) {
 		return;
@@ -182,19 +180,11 @@ void packet_prefetch() {
 		prefetch_pos = 0;
 	}
 	while (prefetch_len < PREFETCH_SIZE) {
-		/* Only read what's already there.  ELKS's inet_read() sleeps
-		 * until data arrives even on an O_NONBLOCK socket, so poll
-		 * with a zero-timeout select() first.  Fixed in ELKS (issue
-		 * 2831, branch pending as of 2026-10); keep this as long as
-		 * released ELKS versions without the fix are in use, since
-		 * it's only a cheap select() per read. */
-		DROPBEAR_FD_ZERO(&fds);
-		FD_SET(ses.sock_in, &fds);
-		tv.tv_sec = 0;
-		tv.tv_usec = 0;
-		if (select(ses.sock_in + 1, &fds, NULL, NULL, &tv) <= 0) {
-			break;
-		}
+		/* EXPERIMENT (branch no-select-guard, not for merging): no
+		 * select() guard; rely on read() returning EAGAIN on the
+		 * empty O_NONBLOCK socket.  Only works on ELKS with the
+		 * inet_read() fix; on older kernels this blocks until the
+		 * server closes the connection. */
 		n = read(ses.sock_in, prefetch_buf + prefetch_len,
 			PREFETCH_SIZE - prefetch_len);
 		if (n <= 0) {
