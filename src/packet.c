@@ -184,7 +184,10 @@ void packet_prefetch() {
 	while (prefetch_len < PREFETCH_SIZE) {
 		/* Only read what's already there.  ELKS's inet_read() sleeps
 		 * until data arrives even on an O_NONBLOCK socket, so poll
-		 * with a zero-timeout select() first. */
+		 * with a zero-timeout select() first.  Fixed in ELKS (issue
+		 * 2831, branch pending as of 2026-10); keep this as long as
+		 * released ELKS versions without the fix are in use, since
+		 * it's only a cheap select() per read. */
 		DROPBEAR_FD_ZERO(&fds);
 		FD_SET(ses.sock_in, &fds);
 		tv.tv_sec = 0;
