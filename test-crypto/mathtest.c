@@ -6,10 +6,11 @@
  * to measure the field-arithmetic hot paths without waiting for a full
  * SSH handshake.
  *
- *   mathtest       X25519 then Ed25519
+ *   mathtest       all of the below
  *   mathtest x     X25519 only: 1 timed scalarmult + 1 untimed check
  *   mathtest e     Ed25519 only: 1 timed verify (it is its own check),
  *                  with a per-stage breakdown
+ *   mathtest c     ChaCha20-Poly1305 cost per keystroke (mathtest_chacha.c)
  *
  * 8088 timing is deterministic (no cache, no branch prediction, no DVFS),
  * so a single run is a solid measurement.
@@ -43,6 +44,8 @@ static const unsigned char expected[32] = {
     0x32, 0xec, 0xcf, 0x03, 0x49, 0x1c, 0x71, 0xf7,
     0x54, 0xb4, 0x07, 0x55, 0x77, 0xa2, 0x85, 0x52
 };
+
+int test_chachapoly(void);   /* mathtest_chacha.c */
 
 /* curve25519.c only references genrandom() from key generation and
  * signing, which mathtest never calls. */
@@ -149,15 +152,19 @@ static int test_ed25519(void)
 
 int main(int argc, char **argv)
 {
-    int do_x = 1, do_e = 1, fails = 0;
+    int do_x = 1, do_e = 1, do_c = 1, fails = 0;
 
     if (argc > 1) {
         do_x = strchr(argv[1], 'x') != NULL;
         do_e = strchr(argv[1], 'e') != NULL;
-        if (!do_x && !do_e) {
-            fprintf(stderr, "usage: %s [x|e|xe]\n", argv[0]);
+        do_c = strchr(argv[1], 'c') != NULL;
+        if (!do_x && !do_e && !do_c) {
+            fprintf(stderr, "usage: %s [x|e|c, combinable]\n", argv[0]);
             return 2;
         }
+    }
+    if (do_c) {
+        fails += test_chachapoly();
     }
     if (do_x) {
         fails += test_x25519();

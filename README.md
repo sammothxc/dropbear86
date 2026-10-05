@@ -70,7 +70,7 @@ What got it there:
 
 Of the remaining ~3 minutes, about 55 s is ELKS loading the binary (it reads the ~2,100 relocation entries one at a time), 62 s is two X25519 operations, and 47 s is verifying the server's signature. Interactive traffic after the handshake is symmetric-only (ChaCha20-Poly1305) and usable at keystroke speed.
 
-Set `DROPBEAR_PHASE_TIMING=1` in the environment to print a timestamp at each handshake step. `test-crypto/mathtest` benchmarks the crypto on its own. Full measurement history is in [`PERF.md`](PERF.md).
+Build with `make -f Makefile.elks DB86_TIMING=1` for an `ssh` that prints a timestamp at each handshake step and a latency breakdown after each keystroke (`[ks ...]` lines); normal builds leave this out. `test-crypto/mathtest` benchmarks the crypto on its own. Full measurement history is in [`PERF.md`](PERF.md).
 
 ## Known limitations
 

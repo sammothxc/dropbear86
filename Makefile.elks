@@ -1,10 +1,23 @@
 TOPDIR ?= ../..
 
 CC = ia16-elf-gcc
+# DB86_TIMING=1 (on the command line or in the environment, e.g.
+# `DB86_TIMING=1 ~/elks-local/push-ssh.sh`) builds a timing ssh: handshake
+# phase timestamps and per-keystroke latency samples on stderr, always on.
+# Normal builds leave that code out.  The timing build uses its own object
+# directory, and its version string ends in +timing, which also makes
+# switching between the two always relink ./ssh.
+DB86_TIMING ?=
+ifneq ($(DB86_TIMING),)
+OBJDIR = obj-elks-timing
+TIMING_CPPFLAGS = -DDROPBEAR86_TIMING=1
+TIMING_SUFFIX = +timing
+else
 OBJDIR = obj-elks
+endif
 DBCLIENT = ssh
 
-CPPFLAGS = -I. -I src -I libtomcrypt/src/headers -DLOCALOPTIONS_H_EXISTS -DDROPBEAR_CLIENT -DDROPBEAR_ELKS_WEAK_RANDOM=1
+CPPFLAGS = -I. -I src -I libtomcrypt/src/headers -DLOCALOPTIONS_H_EXISTS -DDROPBEAR_CLIENT -DDROPBEAR_ELKS_WEAK_RANDOM=1 $(TIMING_CPPFLAGS)
 # -O2 works on QEMU (verified end-to-end KEX). Earlier hang on real Compaq
 # hardware turned out to be heap sizing, not compiler codegen — once the
 # heap dropped from 40 KB to 24 KB, -Os ran fine and -O2 remains untested
@@ -12,6 +25,12 @@ CPPFLAGS = -I. -I src -I libtomcrypt/src/headers -DLOCALOPTIONS_H_EXISTS -DDROPB
 # a future test shows -O2 broken on the Compaq, fall back to -Os.
 CFLAGS = -mcmodel=medium -melks-libc -mtune=i8086 -Wall -O2 \
 	-fomit-frame-pointer -fno-strict-overflow -Wno-pointer-sign
+# Track header dependencies: without this, changing a header such as
+# chachapoly.h (whose struct sits inside every session's key state) only
+# rebuilt the .c files touched, linking objects with different struct
+# layouts.  -MMD writes obj/*.d next to each object; it doesn't change the
+# generated code.
+DEPFLAGS = -MMD -MP
 
 DBCLIENT_SRCS = \
 	dbutil buffer dbhelpers signkey dbrandom queue atomicio compat fake-rfc2553 \
@@ -19,34 +38,36 @@ DBCLIENT_SRCS = \
 	common-algo common-kex common-channel common-chansession termcodes \
 	loginrec listener process-packet common-runopts circbuffer list netio \
 	chachapoly kex-x25519 cli-main cli-auth cli-authpasswd cli-authpubkey \
-	cli-kex cli-session cli-runopts cli-chansession cli-channel cli-authinteract
+	cli-kex cli-session cli-runopts cli-chansession cli-channel cli-authinteract \
+	poly1305_16
 
 LTC_SRCS = \
 	hashes/sha2/sha256 hashes/sha2/sha512 hashes/helper/hash_memory \
 	mac/hmac/hmac_init mac/hmac/hmac_process mac/hmac/hmac_done \
-	mac/poly1305/poly1305 misc/base64/base64_encode misc/base64/base64_decode \
+	misc/base64/base64_encode misc/base64/base64_decode \
 	misc/crypt/crypt_argchk misc/crypt/crypt_find_hash \
 	misc/crypt/crypt_hash_descriptor misc/crypt/crypt_hash_is_valid \
 	misc/crypt/crypt_register_hash misc/zeromem \
 	stream/chacha/chacha_setup stream/chacha/chacha_ivctr64 \
 	stream/chacha/chacha_crypt stream/chacha/chacha_keystream
 
-# Hand-written 8086 field arithmetic for curve25519.c (generated from
-# src/fe25519_ia16.py; the .S is committed so no Python is needed here).
-ASM_SRCS = fe25519_ia16
+# Hand-written 8086 assembly: field arithmetic for curve25519.c, the
+# ChaCha20 block for libtomcrypt and Poly1305's multiply for poly1305_16.c (generated from src/*_ia16.py; the .S
+# files are committed so no Python is needed here).
+ASM_SRCS = fe25519_ia16 chacha_ia16 poly1305_ia16
 
 DBCLIENT_OBJS = $(addprefix $(OBJDIR)/,$(addsuffix .o,$(DBCLIENT_SRCS) $(ASM_SRCS)))
 LTC_OBJS = $(addprefix $(OBJDIR)/ltc/,$(addsuffix .o,$(LTC_SRCS)))
 
 # Build identity for `ssh -V`.  Regenerated every make but only rewritten
 # when the commit (or dirty state) changes, so it doesn't force rebuilds.
-DB86_VERSION := $(shell git describe --always --dirty 2>/dev/null || echo unknown)
+DB86_VERSION := $(shell git describe --always --dirty 2>/dev/null || echo unknown)$(TIMING_SUFFIX)
 
 .PHONY: all clean FORCE
 
 all: $(DBCLIENT)
 
-$(DBCLIENT): default_options_guard.h $(DBCLIENT_OBJS) $(LTC_OBJS)
+$(DBCLIENT): default_options_guard.h dropbear86_version.h $(DBCLIENT_OBJS) $(LTC_OBJS)
 	$(CC) -mcmodel=medium -melks-libc -mtune=i8086 -maout-heap=24576 -maout-stack=4096 -o $@ $(DBCLIENT_OBJS) $(LTC_OBJS)
 
 default_options_guard.h: src/default_options.h src/ifndef_wrapper.sh
@@ -58,14 +79,16 @@ dropbear86_version.h: FORCE
 	@echo '#define DROPBEAR86_VERSION "$(DB86_VERSION)"' > $@.tmp
 	@cmp -s $@.tmp $@ && rm -f $@.tmp || mv $@.tmp $@
 
+ifneq ($(DB86_TIMING),)
 $(OBJDIR)/curve25519.o: CPPFLAGS += -DCURVE25519_PHASE_MARKS
+endif
 
 $(OBJDIR)/common-runopts.o: dropbear86_version.h
 $(OBJDIR)/common-runopts.o: CPPFLAGS += -include dropbear86_version.h
 
 $(OBJDIR)/%.o: src/%.c default_options_guard.h localoptions.h
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(CPPFLAGS) -c $< -o $@
 
 $(OBJDIR)/%.o: src/%.S
 	@mkdir -p $(dir $@)
@@ -73,7 +96,9 @@ $(OBJDIR)/%.o: src/%.S
 
 $(OBJDIR)/ltc/%.o: libtomcrypt/src/%.c default_options_guard.h localoptions.h
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(CPPFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(OBJDIR) $(DBCLIENT) default_options_guard.h dropbear86_version.h
+	rm -rf obj-elks obj-elks-timing $(DBCLIENT) default_options_guard.h dropbear86_version.h
+
+-include $(DBCLIENT_OBJS:.o=.d) $(LTC_OBJS:.o=.d)

@@ -1,6 +1,7 @@
 # generated during ELKS build
 default_options_guard.h
 obj-elks/
+obj-elks-timing/
 
 # host build outputs
 obj/
@@ -34,3 +35,4 @@ libtomcrypt/libtomcrypt.a
 CLAUDE.md
 test-crypto/test_ed25519
 dropbear86_version.h
+test-crypto/test_poly1305

@@ -33,6 +33,8 @@
 void write_packet(void);
 void read_packet(void);
 void packet_prefetch(void);
+int packet_idle_pending(void);
+void packet_idle_work(void);
 int packet_prefetch_pending(void);
 void decrypt_packet(void);
 void encrypt_packet(void);

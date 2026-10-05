@@ -610,28 +610,111 @@ void setnonblocking(int fd) {
 	TRACE(("leave setnonblocking"))
 }
 
-/* Handshake phase timing for slow targets (ELKS on an 8088).  With
- * DROPBEAR_PHASE_TIMING set in the environment, prints the elapsed time
- * at each step to stderr.  Times count from the first call, right after
- * argument parsing, so program load time is not included. */
+#if DROPBEAR86_TIMING
+/* Timing build only (make -f Makefile.elks DB86_TIMING=1); in normal
+ * builds dbutil.h turns these into no-ops so the code and its strings
+ * aren't in the binary.
+ *
+ * Handshake phase timing for slow targets (ELKS on an 8088): prints the
+ * elapsed time at each step to stderr.  Times count from the first call,
+ * right after argument parsing, so program load time is not included. */
 void phase_mark(const char *what) {
-	static int enabled = -1;
+	static int started = 0;
 	static struct timeval t0;
 	struct timeval tv;
 	long cs;
 
-	if (enabled < 0) {
-		enabled = getenv("DROPBEAR_PHASE_TIMING") != NULL;
+	if (!started) {
+		started = 1;
 		gettimeofday(&t0, NULL);
-	}
-	if (!enabled) {
-		return;
 	}
 	gettimeofday(&tv, NULL);
 	cs = (long)(tv.tv_sec - t0.tv_sec) * 100
 		+ (long)(tv.tv_usec - t0.tv_usec) / 10000;
 	fprintf(stderr, "[%4ld.%02lds] %s\r\n", cs / 100, cs % 100, what);
 }
+
+/* Keystroke latency breakdown (timing build only).
+ * One keystroke at a time is followed through five points: read from
+ * the keyboard (KS_KEY), its packet written to the socket (KS_SENT), the
+ * next incoming packet starting to arrive (KS_ARRIVED), that packet
+ * decrypted (KS_DECRYPTED) and its data written to the terminal
+ * (KS_DRAWN).  Keys pressed while a sample is in flight are ignored, and
+ * a sample with no echo (e.g. a password) is dropped after 3 seconds.
+ * Each completed sample is printed right away, after its last timestamp,
+ * as "[ks a+b+c+d = total (avg N)]".  It interleaves with the remote
+ * output, but keystroke_report() at exit never appears on ELKS (see the
+ * commit adding it), so this is the reliable way to see the numbers. */
+static int ks_stage = -1;		/* -1: idle */
+static struct timeval ks_t[5];
+static long ks_sum_ms[4];
+static unsigned int ks_count;
+
+static long ks_ms_between(const struct timeval *a, const struct timeval *b) {
+	return (long)(b->tv_sec - a->tv_sec) * 1000
+		+ (long)(b->tv_usec - a->tv_usec) / 1000;
+}
+
+void keystroke_mark(int stage) {
+	struct timeval now;
+	int i;
+
+	gettimeofday(&now, NULL);
+	if (stage == KS_KEY) {
+		if (ks_stage == -1 || ks_ms_between(&ks_t[0], &now) > 3000) {
+			ks_t[0] = now;
+			ks_stage = KS_KEY;
+		}
+		return;
+	}
+	if (ks_stage != stage - 1) {
+		return;
+	}
+	ks_t[stage] = now;
+	ks_stage = stage;
+	if (stage == KS_DRAWN) {
+		long ms[4], total = 0, sum = 0;
+
+		for (i = 0; i < 4; i++) {
+			ms[i] = ks_ms_between(&ks_t[i], &ks_t[i + 1]);
+			ks_sum_ms[i] += ms[i];
+			total += ms[i];
+			sum += ks_sum_ms[i];
+		}
+		ks_count++;
+		ks_stage = -1;
+		if (ks_count == 1) {
+			fprintf(stderr, "\r\n[keystroke ms: key->sent + sent->echo + "
+				"echo->decrypted + decrypted->drawn = total (avg)]\r\n");
+		}
+		fprintf(stderr, "[ks %ld+%ld+%ld+%ld = %ld (avg %ld)]\r\n",
+			ms[0], ms[1], ms[2], ms[3], total, sum / (long)ks_count);
+		fflush(stderr);
+	}
+}
+
+void keystroke_report() {
+	static const char *const what[4] = {
+		"key read -> packet sent",
+		"sent -> echo starts arriving",
+		"arrival -> echo decrypted",
+		"decrypted -> drawn on screen",
+	};
+	long total = 0;
+	int i;
+
+	if (ks_count == 0) {
+		return;
+	}
+	fprintf(stderr, "\r\nKeystroke timing, average of %u keystrokes:\r\n", ks_count);
+	for (i = 0; i < 4; i++) {
+		fprintf(stderr, "  %-30s %5ld ms\r\n", what[i], ks_sum_ms[i] / (long)ks_count);
+		total += ks_sum_ms[i];
+	}
+	fprintf(stderr, "  %-30s %5ld ms\r\n", "total", total / (long)ks_count);
+}
+
+#endif /* DROPBEAR86_TIMING */
 
 void disallow_core() {
 #ifdef RLIMIT_CORE

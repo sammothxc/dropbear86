@@ -36,6 +36,7 @@
 #include "channel.h"
 #include "netio.h"
 #include "runopts.h"
+#include "chachapoly.h"
 
 static int read_packet_init(void);
 static int sock_read(void *buf, unsigned int len);
@@ -99,6 +100,7 @@ void write_packet() {
 
 	packet_queue_consume(&ses.writequeue, written);
 	ses.writequeue_len -= written;
+	keystroke_mark(KS_SENT);
 
 	if (written == 0) {
 		ses.remoteclosed();
@@ -130,6 +132,7 @@ void write_packet() {
 	}
 
 	ses.writequeue_len -= written;
+	keystroke_mark(KS_SENT);
 
 	if (written == len) {
 		/* We've finished with the packet, free it */
@@ -163,8 +166,6 @@ static unsigned int prefetch_len = 0, prefetch_pos = 0;
 
 void packet_prefetch() {
 	int n;
-	fd_set fds;
-	struct timeval tv;
 
 	if (ses.sock_in == -1 || !ses.remoteident) {
 		return;
@@ -179,16 +180,11 @@ void packet_prefetch() {
 		prefetch_pos = 0;
 	}
 	while (prefetch_len < PREFETCH_SIZE) {
-		/* Only read what's already there.  ELKS's inet_read() sleeps
-		 * until data arrives even on an O_NONBLOCK socket, so poll
-		 * with a zero-timeout select() first. */
-		DROPBEAR_FD_ZERO(&fds);
-		FD_SET(ses.sock_in, &fds);
-		tv.tv_sec = 0;
-		tv.tv_usec = 0;
-		if (select(ses.sock_in + 1, &fds, NULL, NULL, &tv) <= 0) {
-			break;
-		}
+		/* EXPERIMENT (branch no-select-guard, not for merging): no
+		 * select() guard; rely on read() returning EAGAIN on the
+		 * empty O_NONBLOCK socket.  Only works on ELKS with the
+		 * inet_read() fix; on older kernels this blocks until the
+		 * server closes the connection. */
 		n = read(ses.sock_in, prefetch_buf + prefetch_len,
 			PREFETCH_SIZE - prefetch_len);
 		if (n <= 0) {
@@ -222,6 +218,95 @@ static int sock_read(void *buf, unsigned int len) {
 	return read(ses.sock_in, buf, len);
 }
 
+/* Idle-time precomputation.
+ *
+ * On an 8088 the per-packet crypto that doesn't depend on the data -- the
+ * random padding (one SHA-256 in genrandom(), ~144 ms) and ChaCha20
+ * keystream for the next packet in each direction (3 blocks each, ~27 ms
+ * per block) -- dominated keystroke latency.  session_loop() calls
+ * packet_idle_work() one unit at a time while nothing is ready to read or
+ * write, so by the time a key is pressed or an echo arrives that work is
+ * done.  Everything falls back to computing on the spot if it isn't. */
+
+/* Random bytes for packet padding, refilled while idle.  pad_pool_avail
+ * bytes are left at the end of pad_pool. */
+#define PAD_POOL_SIZE 32
+/* Enough for any padding with an 8-byte block: up to 11 + 8 bytes. */
+#define PAD_POOL_LOW 20
+static unsigned char pad_pool[PAD_POOL_SIZE];
+static unsigned int pad_pool_avail = 0;
+
+static void get_padding(unsigned char *buf, unsigned int len) {
+	if (len <= pad_pool_avail) {
+		unsigned char *src = pad_pool + PAD_POOL_SIZE - pad_pool_avail;
+		memcpy(buf, src, len);
+		m_burn(src, len);
+		pad_pool_avail -= len;
+	} else {
+		genrandom(buf, len);
+	}
+}
+
+#if DROPBEAR_CHACHA20POLY1305
+static dropbear_chachapoly_state *chachapoly_state(struct key_context_directional *dir) {
+	if (dir->crypt_mode == &dropbear_mode_chachapoly) {
+		return &dir->cipher_state.chachapoly;
+	}
+	return NULL;
+}
+#endif
+
+int packet_idle_pending() {
+#if DROPBEAR_CHACHA20POLY1305
+	dropbear_chachapoly_state *st;
+#endif
+
+	if (!ses.keys || !ses.dataallowed) {
+		return 0;
+	}
+	if (pad_pool_avail < PAD_POOL_LOW) {
+		return 1;
+	}
+#if DROPBEAR_CHACHA20POLY1305
+	st = chachapoly_state(&ses.keys->trans);
+	if (st && (st->pre_seq != ses.transseq || st->pre_have != 7)) {
+		return 1;
+	}
+	st = chachapoly_state(&ses.keys->recv);
+	if (st && (st->pre_seq != ses.recvseq || st->pre_have != 7)) {
+		return 1;
+	}
+#endif
+	return 0;
+}
+
+/* Do one unit of idle work: a padding refill or one ChaCha20 block.
+ * Sending (padding, then outgoing keystream) comes first. */
+void packet_idle_work() {
+#if DROPBEAR_CHACHA20POLY1305
+	dropbear_chachapoly_state *st;
+#endif
+
+	if (!ses.keys || !ses.dataallowed) {
+		return;
+	}
+	if (pad_pool_avail < PAD_POOL_LOW) {
+		genrandom(pad_pool, PAD_POOL_SIZE);
+		pad_pool_avail = PAD_POOL_SIZE;
+		return;
+	}
+#if DROPBEAR_CHACHA20POLY1305
+	st = chachapoly_state(&ses.keys->trans);
+	if (st && dropbear_chachapoly_precompute(st, ses.transseq)) {
+		return;
+	}
+	st = chachapoly_state(&ses.keys->recv);
+	if (st) {
+		dropbear_chachapoly_precompute(st, ses.recvseq);
+	}
+#endif
+}
+
 void read_packet() {
 
 	int len;
@@ -230,6 +315,10 @@ void read_packet() {
 
 	TRACE2(("enter read_packet"))
 	blocksize = ses.keys->recv.algo_crypt->blocksize;
+	if (ses.readbuf == NULL) {
+		/* starting a new packet */
+		keystroke_mark(KS_ARRIVED);
+	}
 	
 	if (ses.readbuf == NULL || ses.readbuf->len < blocksize) {
 		int ret;
@@ -455,6 +544,7 @@ void decrypt_packet() {
 	ses.readbuf = NULL;
 
 	ses.recvseq++;
+	keystroke_mark(KS_DECRYPTED);
 
 	TRACE2(("leave decrypt_packet"))
 }
@@ -684,7 +774,7 @@ void encrypt_packet() {
 	/* actual padding */
 	buf_setpos(writebuf, writebuf->len);
 	buf_incrlen(writebuf, padlen);
-	genrandom(buf_getptr(writebuf, padlen), padlen);
+	get_padding(buf_getptr(writebuf, padlen), padlen);
 
 #if DROPBEAR_AEAD_MODE
 	if (ses.keys->trans.crypt_mode->aead_crypt) {

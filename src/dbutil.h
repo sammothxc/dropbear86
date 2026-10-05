@@ -76,7 +76,18 @@ int buf_getline(buffer * line, FILE * authfile);
 void m_close(int fd);
 void setnonblocking(int fd);
 void disallow_core(void);
+/* Keystroke latency stages, see keystroke_mark() in dbutil.c */
+enum { KS_KEY, KS_SENT, KS_ARRIVED, KS_DECRYPTED, KS_DRAWN };
+#if DROPBEAR86_TIMING
+/* Timing build: make -f Makefile.elks DB86_TIMING=1 */
 void phase_mark(const char *what);
+void keystroke_mark(int stage);
+void keystroke_report(void);
+#else
+#define phase_mark(what) do { } while (0)
+#define keystroke_mark(stage) do { } while (0)
+#define keystroke_report() do { } while (0)
+#endif
 int m_str_to_uint(const char* str, unsigned int *val);
 /* The same as snprintf() but exits rather than returning negative */
 int m_snprintf(char *str, size_t size, const char *format, ...);
